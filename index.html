@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#241041">
+<title>やまなりショット</title>
+<meta name="description" content="山なりの弾で、丘の上の敵をたおす">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="hud hide" id="hud">
+  <div class="stage">だい<b id="stgNum">1</b>だん<div class="left" id="leftTxt"></div></div>
+  <div class="row" style="gap:8px">
+    <button class="btn-ico" id="btnSnd">♪</button>
+    <button class="btn-ico" id="btnRetry">↻</button>
+    <button class="btn-ico" id="btnHome">≡</button>
+  </div>
+</div>
+<div class="belt hide" id="belt"></div>
+<div class="hint hide" id="hint"></div>
+
+<div class="panel" id="pTitle">
+  <h1>やまなり<br>ショット</h1>
+  <p class="lead">まっすぐでは当たらない。<br>山なりの弾で、丘の上の敵をたおす。</p>
+  <button class="btn" id="btnStart">はじめる</button>
+  <div class="ver" id="ver"></div>
+</div>
+
+<div class="panel sheet hide" id="pSelect">
+  <div class="big">だんをえらぶ</div>
+  <div class="scroll" id="scroll"></div>
+  <button class="btn ghost" id="btnTitle">もどる</button>
+</div>
+
+<div class="panel sheet hide" id="pResult">
+  <div class="big" id="rTitle">クリア！</div>
+  <div class="stars" id="rStars"></div>
+  <div class="lead" id="rText"></div>
+  <div class="row">
+    <button class="btn ghost" id="btnR2">もういちど</button>
+    <button class="btn" id="btnNext">つぎへ</button>
+  </div>
+  <button class="btn ghost" id="btnR3">だんをえらぶ</button>
+</div>
+
+<script src="./core.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>

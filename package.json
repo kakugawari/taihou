@@ -1,0 +1,16 @@
+{
+  "name": "taihou",
+  "version": "1.0.0",
+  "description": "やまなりショット — 山なりの弾で、丘の上の敵をたおす",
+  "private": true,
+  "scripts": {
+    "start": "node serve.js",
+    "test": "node --test *.test.js",
+    "test:ui": "node browser-test.js",
+    "bundle": "node bundle.js"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  }
+}
