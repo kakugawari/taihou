@@ -230,6 +230,24 @@ async function run() {
     ok(lose.r && lose.r.win === false && lose.title === 'たまぎれ', `「たまぎれ」が出る (${lose.title})`);
     ok(lose.next === 'none', '負けたら「つぎへ」は出ない');
 
+    // ------------------------------------------------ アイコン
+    section('ホーム画面のアイコン');
+    const icon = await page.evaluate(async () => {
+      const href = document.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href') || '';
+      const img = new Image();
+      const loaded = await new Promise((r) => { img.onload = () => r(true); img.onerror = () => r(false); img.src = href; });
+      if (!loaded) return { href, loaded };
+      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+      const n = img.width - 1;
+      const corners = [[0, 0], [n, 0], [0, n], [n, n]].map(([x, y]) => g.getImageData(x, y, 1, 1).data[3]);
+      return { href, loaded, w: img.width, h: img.height, minAlpha: Math.min(...corners) };
+    });
+    // iOS は SVG のアイコンを使えない。透明な所は黒で埋められる
+    ok(icon.href.endsWith('.png'), `ホーム画面用アイコンが PNG (${icon.href})`);
+    ok(icon.loaded && icon.w === 180 && icon.h === 180, `アイコンが読めて 180x180 (${icon.w}x${icon.h})`);
+    ok(icon.minAlpha === 255, `アイコンの四隅が透けていない (いちばん薄い所 ${icon.minAlpha})`);
+
     section('エラー');
     ok(errors.length === 0, errors.length ? '画面のエラー: ' + errors.join(' / ') : 'JS エラーなし');
   } finally {

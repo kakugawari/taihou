@@ -7,7 +7,8 @@
     "start": "node serve.js",
     "test": "node --test *.test.js",
     "test:ui": "node browser-test.js",
-    "bundle": "node bundle.js"
+    "bundle": "node bundle.js",
+    "icon": "node make-icon.js"
   },
   "license": "MIT",
   "devDependencies": {

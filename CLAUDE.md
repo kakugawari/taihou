@@ -31,6 +31,7 @@ npm start          # http://localhost:8080/ で開く
 npm test           # ロジックのテスト (node だけで動く。速い)
 npm run test:ui    # ブラウザで実際に動かすテスト (要 npm i -D playwright)
 npm run bundle     # 1 枚の HTML にまとめる (dist/index.html。テストプレイ用)
+npm run icon       # アイコン (icon-180/192/512.png) を描き直す
 ```
 
 `npm run test:ui` は本物のブラウザを立ち上げ、指の操作をそのまま再現する。
@@ -46,6 +47,8 @@ core.test.js              ロジックのテスト (node --test)
 browser-test.js           ブラウザで動かすテスト
 serve.js                  開発用サーバー
 bundle.js                 1 枚の HTML にまとめる
+make-icon.js              アイコンを canvas で描いて PNG に書き出す
+icon-180/192/512.png      アイコン (180 は iPhone のホーム画面用)
 ```
 
 ファイルはすべて直下に置く。スマホやタブレットからでも
