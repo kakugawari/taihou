@@ -178,6 +178,14 @@ async function run() {
     const aim = await findAim(page, 'n');
     ok(!!aim, '当たる向きが見つかる');
     const m = await page.evaluate(() => window.__app.muzzle());
+
+    // ねらいの点線: 大砲は前の倍くらい、ライフルはほぼ線
+    const dotsN = await page.evaluate(({ x, y }) => window.__app.aimDots(x, y).length, { x: m.x + 110, y: m.y - 170 });
+    await page.locator('.slot[data-kind="r"]').tap();
+    const dotsR = await page.evaluate(({ x, y }) => window.__app.aimDots(x, y).length, { x: m.x + 110, y: m.y - 170 });
+    await page.locator('.slot[data-kind="n"]').tap();
+    ok(dotsN >= 14, `大砲のねらいの点が細かい (${dotsN} 点)`);
+    ok(dotsR >= 40, `ライフルのねらいの点がほぼ線 (${dotsR} 点)`);
     await drag(page, { x: 215, y: 500 }, aim);
     const flying = await page.evaluate(() => window.__app.state());
     ok(flying.bullets === 1 && flying.ammo.n === 2, `弾がひとつ飛び、大砲が 1 つ減る (飛んでいる ${flying.bullets} / 残り ${flying.ammo.n})`);

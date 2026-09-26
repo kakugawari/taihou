@@ -133,3 +133,56 @@ test('強さは引いた長さで決まり、下限と上限がある', () => {
   assert.strictEqual(Core.aimVec(m.x + 1, m.y, VIEW).power, Core.MIN_POWER);
   assert.strictEqual(Core.aimVec(m.x + 2000, m.y, VIEW).power, 1);
 });
+
+/** 前の点線の数え方 (1/50 秒きざみで 36 歩、4 歩ごとに 1 つ)。比べるためだけに残す。 */
+function oldDotCount(terrain, kind, aim, view) {
+  const v = Core.launchVelocity(kind, aim, view), m = Core.muzzle(view);
+  const g = Core.AMMO[kind].gmul || 1, h = 1 / 50;
+  let x = m.x, y = m.y, vx = v.vx, vy = v.vy, n = 0;
+  for (let i = 0; i < 36; i++) {
+    vy += Core.GRAV * g * view.H * h; x += vx * h; y += vy * h;
+    if (Core.solid(terrain, x, y, view) || y > view.H * 1.1 || x > view.W * 1.15) break;
+    if (i % 4 === 0 && i > 0) n++;
+  }
+  return n;
+}
+
+test('ねらいの点線: ふつうの弾は、前の倍くらいの点が出る', () => {
+  const terrain = Core.LEVELS[0].terrain;
+  for (const kind of ['n', 'b', 's']) {
+    for (const [deg, p] of [[-60, 1], [-45, 0.7], [-75, 0.5], [-30, 0.9]]) {
+      const aim = aimAt(deg, p, VIEW);
+      const before = oldDotCount(terrain, kind, aim, VIEW);
+      const now = Core.aimDots(terrain, kind, aim, VIEW).length;
+      assert.ok(now >= before * 1.8 && now <= before * 2.3,
+        `${kind} ${deg}° 強さ${p}: 前 ${before} → 今 ${now} (倍くらいのはず)`);
+    }
+  }
+});
+
+test('ねらいの点線: ライフルは点の間が 9px ほどで、ほぼ線に見える', () => {
+  const terrain = Core.LEVELS[0].terrain;
+  for (const [deg, p] of [[-10, 1], [-30, 0.6], [-5, 0.3]]) {
+    const aim = aimAt(deg, p, VIEW);
+    const dots = Core.aimDots(terrain, 'r', aim, VIEW);
+    const before = oldDotCount(terrain, 'r', aim, VIEW);
+    assert.ok(dots.length >= before * 4, `${deg}° 強さ${p}: 前 ${before} → 今 ${dots.length} (うんと増えるはず)`);
+    let worst = 0;
+    for (let i = 1; i < dots.length; i++) {
+      worst = Math.max(worst, Math.hypot(dots[i].x - dots[i - 1].x, dots[i].y - dots[i - 1].y));
+    }
+    assert.ok(worst <= Core.AIM_DOT_PX + 3, `${deg}° 強さ${p}: いちばん広い間 ${worst.toFixed(1)}px`);
+  }
+});
+
+test('ねらいの点線は、地形の中に点を打たない', () => {
+  for (let i = 0; i < Core.LEVELS.length; i++) {
+    const t = Core.LEVELS[i].terrain;
+    for (const kind of ['n', 'r']) {
+      for (const deg of [-80, -50, -20, -5]) {
+        Core.aimDots(t, kind, aimAt(deg, 1, VIEW), VIEW).forEach((d) =>
+          assert.ok(!Core.solid(t, d.x, d.y, VIEW), `${i + 1}面 ${kind} ${deg}°: 地形の中に点`));
+      }
+    }
+  }
+});

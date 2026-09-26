@@ -5,7 +5,7 @@
 'use strict';
 
 const C = window.Core;
-const VERSION = '1';
+const VERSION = '2';
 
 /* ========== 画面 ========== */
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
@@ -519,19 +519,13 @@ function drawGun() {
 }
 
 function drawAim() {
-  const A = C.AMMO[sel] || {}, gmul = A.gmul || 1;
-  const a = aimVec(), m = muzzle(), v = C.launchVelocity(sel, a, view);
-  let x = m.x, y = m.y, vx = v.vx, vy = v.vy;
-  const h = 1 / 50;
-  for (let i = 0; i < 36; i++) {
-    vy += C.GRAV * gmul * H * h; x += vx * h; y += vy * h;
-    if (solid(x, y) || y > H * 1.1 || x > W * 1.15) break;
-    if (i % 4 === 0 && i > 0) {
-      const k = 1 - i / 36;
-      ctx.fillStyle = 'rgba(255,240,214,' + (.16 + k * .5) + ')';
-      ctx.beginPath(); ctx.arc(x, y, H * .005 * (.5 + k * .7), 0, 7); ctx.fill();
-    }
-  }
+  const a = aimVec(), m = muzzle();
+  // ライフルの点は細かく並ぶので、小さめに描く (ふつうの弾の 6 割)
+  const size = H * .005 * (sel === 'r' ? .6 : 1);
+  C.aimDots(terrain, sel, a, view).forEach((d) => {
+    ctx.fillStyle = 'rgba(255,240,214,' + (.16 + d.k * .5) + ')';
+    ctx.beginPath(); ctx.arc(d.x, d.y, size * (.5 + d.k * .7), 0, 7); ctx.fill();
+  });
   ctx.strokeStyle = 'rgba(255,196,107,.9)'; ctx.lineWidth = H * .009; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(m.x, m.y);
   ctx.lineTo(m.x + a.ux * H * .1 * a.power, m.y + a.uy * H * .1 * a.power); ctx.stroke();
@@ -649,6 +643,7 @@ window.__app = {
     foes: foes.map((f) => ({ x: f.x, y: f.y, t: f.t, dead: f.dead, ph: f.ph })), lastResult, save: Object.assign({}, save) }),
   play,
   muzzle,
+  aimDots: (x, y) => C.aimDots(terrain, sel, C.aimVec(x, y, view), view),
   canvasFont: () => textFont
 };
 })();

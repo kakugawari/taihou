@@ -209,6 +209,37 @@
     return { type: 'out', x: b.x, y: b.y, path };
   }
 
+  /*
+   * ねらうときに出す点線。
+   *  - ふつうの弾: 飛ぶ時間 AIM_DOT_T 秒ごとに 1 つ
+   *  - ライフル: 速いので時間で打つと間が空きすぎる。道のり AIM_DOT_PX ごとに 1 つ (ほぼ線に見える)
+   * どちらも AIM_TIME 秒ぶん先まで。地形に当たるか画面の外へ出たらやめる。
+   * k は先へ行くほど 0 に近づく (薄く・小さく描くため)。
+   */
+  const AIM_TIME = 0.72, AIM_DOT_T = 0.04, AIM_DOT_PX = 9;
+  function aimDots(terrain, kind, aim, view) {
+    const v = launchVelocity(kind, aim, view);
+    const m = muzzle(view);
+    const b = { x: m.x, y: m.y, vx: v.vx, vy: v.vy, gmul: AMMO[kind].gmul || 1, life: 0 };
+    const byDistance = kind === 'r';
+    const h = 1 / 400;
+    const dots = [];
+    let run = 0, nextT = AIM_DOT_T;
+    for (let t = 0; t < AIM_TIME; t += h) {
+      const px = b.x, py = b.y;
+      advance(b, h, view);
+      if (solid(terrain, b.x, b.y, view) || b.y > view.H * 1.1 || b.x > view.W * 1.15) break;
+      run += Math.hypot(b.x - px, b.y - py);
+      const due = byDistance ? run >= AIM_DOT_PX : b.life >= nextT - 1e-9;
+      if (due) {
+        dots.push({ x: b.x, y: b.y, k: 1 - b.life / AIM_TIME });
+        run = 0;
+        nextT += AIM_DOT_T;
+      }
+    }
+    return dots;
+  }
+
   /* ========== 敵 ========== */
   const SHIELD_P = 2.4, SHIELD_OPEN = 0.75, SHIELD_WARN = 0.4;   // 周期・開いている時間・予告時間
   const shieldOpen = (ph) => (ph % SHIELD_P) < SHIELD_OPEN;
@@ -294,6 +325,7 @@
     G_Y, LEVELS, PER_CHAPTER, SKIES, skyOf, AMMO, ORDER, CORE_KINDS, rifleFor,
     GUN, GRAV, VMAX, MAXDRAG, MIN_POWER, ER, DIRECT_R, SUBSTEPS,
     muzzle, aimVec, launchVelocity, advance, inPoly, solid, outOfBounds, simulateShot,
+    AIM_TIME, AIM_DOT_T, AIM_DOT_PX, aimDots,
     SHIELD_P, SHIELD_OPEN, SHIELD_WARN, shieldOpen, makeFoes, moveFoe, applyHit, inBlast,
     startingAmmo, kindsIn, coreLeft, totalLeft, starsFor, isOpen, recordStars, frameDt
   };
