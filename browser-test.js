@@ -58,21 +58,24 @@ function waitForServer() {
 }
 
 /**
- * いま生きている敵のどれかに直撃する指の位置を、ロジックの弾道計算で探す。
+ * いま生きている敵のどれかに直撃する (ふつうの敵なら爆風が届く) 指の位置を、ロジックの弾道計算で探す。
  * kind の弾で、指を置く場所 (画面の px) を返す。見つからなければ null。
  */
 function findAim(page, kind) {
   return page.evaluate((kind) => {
     const C = window.Core, app = window.__app, view = app.view;
     const lv = C.LEVELS[app.state().lv];
+    const env = app.env();   // かぜとゲート
     const foes = app.state().foes.filter((f) => !f.dead);
     const m = C.muzzle(view);
     for (let deg = -80; deg <= -5; deg += 1) {
       for (let p = 0.4; p <= 1.0001; p += 0.02) {
         const r = (deg * Math.PI) / 180, d = Math.min(1, p) * view.H * C.MAXDRAG;
         const x = m.x + Math.cos(r) * d, y = m.y + Math.sin(r) * d;
-        const shot = C.simulateShot(lv.terrain, kind, C.aimVec(x, y, view), view, foes, 60);
+        const shot = C.simulateShot(lv.terrain, kind, C.aimVec(x, y, view), view, foes, 60, env);
         if (shot.type === 'direct') return { x, y };
+        // ふつうの敵なら、爆風が届くだけでも倒せる (ほら穴の中は、直撃よりこちらが多い)
+        if (shot.type === 'ground' && foes.some((f) => f.t === 'n' && C.inBlast(f, shot.x, shot.y, C.AMMO[kind].blast, view))) return { x, y };
       }
     }
     return null;
@@ -87,6 +90,26 @@ async function drag(page, from, to) {
     await page.mouse.move(from.x + (to.x - from.x) * i / 6, from.y + (to.y - from.y) * i / 6);
   }
   await page.mouse.up();
+}
+
+/**
+ * 面を始めて、当たる向きを探して撃つのをくり返し、終わるまで遊ぶ。
+ * @returns {Promise<object|null>} 結果 (lastResult)
+ */
+async function playOut(page, level) {
+  await page.evaluate((i) => window.__app.play(i), level);
+  for (let n = 0; n < 8; n++) {
+    const st = await page.evaluate(() => window.__app.state());
+    if (st.scene !== 'play') break;
+    if (st.foes.every((f) => f.dead)) break;   // 全部倒した。勝利の画面が出るのを待つ
+    const aim = await findAim(page, 'n');
+    if (!aim) return { noAim: true };
+    await drag(page, { x: 215, y: 500 }, aim);
+    await page.waitForFunction(() => window.__app.state().bullets === 0, null, { timeout: 6000 }).catch(() => {});
+    await page.waitForTimeout(200);
+  }
+  await page.waitForFunction(() => window.__app.state().scene === 'done', null, { timeout: 4000 }).catch(() => {});
+  return page.evaluate(() => window.__app.state().lastResult);
 }
 
 async function run() {
@@ -140,6 +163,33 @@ async function run() {
     });
     ok(moving > 0.1, `時間が前に進んでいる (0.3 秒で ${moving.toFixed(2)} 秒ぶん)`);
 
+    // ------------------------------------------------ タイトル
+    section('タイトル画面: ゲームの中身が並び、大砲が試し撃ちする');
+    const t0 = await page.evaluate(() => {
+      const r = document.getElementById('pTitle').getBoundingClientRect();
+      const cs = getComputedStyle(document.getElementById('pTitle'));
+      const h1 = document.querySelector('#pTitle h1').getBoundingClientRect();
+      const btn = document.getElementById('btnStart').getBoundingClientRect();
+      return { scene: window.__app.state().scene, types: [...new Set(window.__app.state().foes.map((f) => f.t))].sort().join(','),
+        bgImage: cs.backgroundImage, bgColor: cs.backgroundColor,
+        h1Top: h1.top, btnBottom: btn.bottom, btnH: btn.height, panelH: r.height };
+    });
+    ok(t0.scene === 'title' && t0.types === 'a,f,n,sh,w', `敵が全部の種類ならぶ (${t0.types})`);
+    ok(t0.bgImage === 'none' && /rgba\(0, 0, 0, 0\)|transparent/.test(t0.bgColor), '題字の板が透けて、後ろの絵が見える');
+    ok(t0.h1Top >= 0 && t0.btnBottom < 932 * 0.55, `題字とボタンは画面の上半分に収まる (ボタンの下 ${Math.round(t0.btnBottom)}px)`);
+    // 敵が実際にキャンバスへ描かれているか (ふつうの敵の体の色 #FFF0D6 を読む)
+    const body = await page.evaluate(() => {
+      const f = window.__app.state().foes.find((e) => e.t === 'n');
+      const cv = document.getElementById('c'), k = cv.width / cv.clientWidth;
+      const d = cv.getContext('2d').getImageData(Math.round(f.x * 430 * k), Math.round((f.y * 932 + 0.026 * 932 * 0.45) * k), 1, 1).data;
+      return [d[0], d[1], d[2]];
+    });
+    ok(body[0] > 235 && body[1] > 215 && body[2] > 180, `敵が描かれている (体の色 ${body.join(',')})`);
+    await page.waitForTimeout(3800);
+    const t1 = await page.evaluate(() => ({ shots: window.__app.demoShots(), alive: window.__app.state().foes.every((f) => !f.dead), scene: window.__app.state().scene }));
+    ok(t1.shots >= 2, `大砲が勝手に試し撃ちする (3.8 秒で ${t1.shots} 発)`);
+    ok(t1.alive && t1.scene === 'title', '試し撃ちでは敵は倒れず、画面も変わらない');
+
     // ------------------------------------------------ 面をえらぶ
     section('面をえらぶ');
     await page.locator('#btnStart').tap();
@@ -149,7 +199,7 @@ async function run() {
       lock2: document.querySelector('.cell[data-level="1"]').classList.contains('locked'),
       scene: window.__app.state().scene
     }));
-    ok(sel.scene === 'select' && sel.cells === 30, `30 面が並ぶ (${sel.cells})`);
+    ok(sel.scene === 'select' && sel.cells === 42, `42 面が並ぶ (${sel.cells})`);
     ok(sel.open1 && sel.lock2, '1 面目だけ開いていて、2 面目は閉じている');
 
     // 実機の安全域 (上 59・下 34) を差し込んでも、面えらびの画面が 932 に収まる
@@ -237,6 +287,33 @@ async function run() {
     }));
     ok(lose.r && lose.r.win === false && lose.title === 'たまぎれ', `「たまぎれ」が出る (${lose.title})`);
     ok(lose.next === 'none', '負けたら「つぎへ」は出ない');
+
+    // ------------------------------------------------ かぜ・ゲート
+    section('かぜ: 画面に向きと強さが出て、点線も弾も流される');
+    await page.evaluate(() => window.__app.play(30));
+    const w1 = await page.evaluate(() => ({ txt: document.getElementById('wind').textContent, env: window.__app.env().wind,
+      shown: getComputedStyle(document.getElementById('wind')).display !== 'none' }));
+    ok(w1.shown && w1.txt.startsWith('かぜ ') && w1.txt.includes('▶') && w1.env > 0, `右向きのかぜが出る (${w1.txt})`);
+    await page.evaluate(() => window.__app.play(31));
+    const w2 = await page.evaluate(() => document.getElementById('wind').textContent);
+    ok(w2.includes('◀'), `左向きのかぜが出る (${w2})`);
+    await page.evaluate(() => window.__app.play(0));
+    const w0 = await page.evaluate(() => ({ shown: getComputedStyle(document.getElementById('wind')).display !== 'none', env: window.__app.env().wind }));
+    ok(!w0.shown && w0.env === 0, 'かぜの無い面では、かぜの表示が出ない');
+
+    for (const lvl of [30, 33]) {
+      const r = await playOut(page, lvl);
+      ok(r && r.win === true, `${lvl + 1}面 (かぜ): かぜを読んだ撃ち方でクリアできる (${r ? JSON.stringify(r) : 'null'})`);
+    }
+
+    section('ゲート: 入口に撃ち込むと出口から出て、ほら穴の敵に当たる');
+    await page.evaluate(() => window.__app.play(36));
+    const g1 = await page.evaluate(() => window.__app.env().portals.length);
+    ok(g1 === 1, `37 面にゲートが 1 組ある (${g1})`);
+    for (const lvl of [36, 37, 38]) {   // ふつうの敵だけの面 (爆風で倒せる)
+      const r = await playOut(page, lvl);
+      ok(r && r.win === true, `${lvl + 1}面 (ゲート): ゲートを通してクリアできる (${r ? JSON.stringify(r) : 'null'})`);
+    }
 
     // ------------------------------------------------ アイコン
     section('ホーム画面のアイコン');

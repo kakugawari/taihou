@@ -5,7 +5,7 @@
 'use strict';
 
 const C = window.Core;
-const VERSION = '2';
+const VERSION = '3';
 
 /* ========== 画面 ========== */
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
@@ -16,6 +16,7 @@ function resize() {
   if (!(w >= 1 && h >= 1)) return;          // 回転中などに 0 が来ることがある。前の大きさのままにする
   DPR = Math.min(window.devicePixelRatio || 1, 2.5);
   W = view.W = w; H = view.H = h;
+  portalSprites = [];
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   buildBackdrop();
@@ -28,7 +29,7 @@ const FONT = getComputedStyle(document.body).fontFamily;
 let AC = null, soundOn = true;
 const ac = () => (AC ||= new (window.AudioContext || window.webkitAudioContext)());
 function tone(f1, f2, dur, type = 'sine', vol = .2) {
-  if (!soundOn) return; const a = ac(), t = a.currentTime;
+  if (!soundOn || scene === 'title') return; const a = ac(), t = a.currentTime;
   const o = a.createOscillator(), g = a.createGain();
   o.type = type; o.frequency.setValueAtTime(f1, t);
   o.frequency.exponentialRampToValueAtTime(Math.max(40, f2), t + dur);
@@ -36,7 +37,7 @@ function tone(f1, f2, dur, type = 'sine', vol = .2) {
   o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + dur + .02);
 }
 function noise(dur, f, vol = .3) {
-  if (!soundOn) return; const a = ac(), t = a.currentTime;
+  if (!soundOn || scene === 'title') return; const a = ac(), t = a.currentTime;
   const n = Math.floor(a.sampleRate * dur), b = a.createBuffer(1, n, a.sampleRate), d = b.getChannelData(0);
   for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
   const s = a.createBufferSource(); s.buffer = b;
@@ -53,6 +54,7 @@ const sBounce = () => tone(700, 420, .09, 'triangle', .14);
 const sSplit = () => { tone(500, 1100, .12, 'square', .12); noise(.12, 2200, .14); };
 const sClang = () => { noise(.12, 4200, .2); tone(1800, 900, .12, 'square', .09); };
 const sClear = () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, f * 1.5, .3, 'triangle', .16), i * 110));
+const sWarp = () => { tone(260, 1300, .16, 'sine', .15); setTimeout(() => tone(1300, 520, .12, 'triangle', .09), 60); };
 const sFail = () => tone(300, 120, .5, 'sawtooth', .13);
 
 /* ========== 保存 ========== */
@@ -71,6 +73,8 @@ let ammo = {}, sel = 'n', shake = 0, flash = 0, hitstop = 0, endTimer = 0, gunRe
 let kindsInLevel = [];
 let aiming = false, aimX = 0, aimY = 0, bolt = 0;
 let lastResult = null;
+let wind = 0, portals = [], gusts = [];   // この面のかぜ (+ は右) とゲート
+let demoT = 0, demoAng = -Math.PI / 4, demoShots = 0, demoKind = 0;   // タイトルの飾りの試し撃ち
 let textFont = '';   // 字を書くときに効いている font (テスト用)
 
 /* ========== 背景生成 ========== */
@@ -99,7 +103,8 @@ function buildBackdrop() {
     ] };
   }
   stars = []; for (let i = 0; i < pal.stars; i++) stars.push({ x: rnd(), y: rnd() * 0.45, r: rnd() * 1.6 + 0.5, p: rnd() * 6 });
-  clouds = []; if (pal.name === 'あさ') for (let i = 0; i < 4; i++) clouds.push({ x: rnd(), y: 0.12 + rnd() * 0.2, s: 0.07 + rnd() * 0.07, v: 0.006 + rnd() * 0.01 });
+  clouds = []; if (pal.clouds) for (let i = 0; i < 4; i++) clouds.push({ x: rnd(), y: 0.12 + rnd() * 0.2, s: 0.07 + rnd() * 0.07, v: 0.006 + rnd() * 0.01 });
+  gusts = []; if (wind) for (let i = 0; i < 34; i++) gusts.push({ x: rnd(), y: 0.08 + rnd() * 0.78, v: 0.7 + rnd() * 0.8, l: 0.05 + rnd() * 0.07 });
   drops = []; if (pal.rain) for (let i = 0; i < 60; i++) drops.push({ x: rnd(), y: rnd(), v: 0.9 + rnd() * 0.5 });
 }
 
@@ -111,10 +116,42 @@ function loadLevel(i) {
   kindsInLevel = C.kindsIn(i);
   sel = C.ORDER.find((k) => ammo[k] > 0) || 'n';
   foes = C.makeFoes(i);
+  wind = C.LEVELS[i].wind || 0; portals = C.LEVELS[i].portals || [];
+  const nWind = wind ? Math.ceil(Math.abs(wind) / 0.15) : 0;
+  $('wind').textContent = wind ? 'かぜ ' + (wind > 0 ? '▶'.repeat(nWind) : '◀'.repeat(nWind)) : '';
   bullets = []; parts = []; rings = []; texts = []; smoke = [];
   shake = 0; flash = 0; hitstop = 0; endTimer = 0; gunRecoil = 0; bolt = 0; comboCount = 0;
   buildBackdrop(); drawBelt();
   $('stgNum').textContent = i + 1;
+}
+
+/** タイトル画面: ゲームの中身 (地形・全部の種類の敵) を並べ、大砲が勝手に試し撃ちする。 */
+function loadTitle() {
+  lv = 0;
+  terrain = C.TITLE.terrain; foes = C.foesFrom(C.TITLE.enemies);
+  wind = 0; portals = []; ammo = { n: 9 }; kindsInLevel = ['n']; sel = 'n';
+  bullets = []; parts = []; rings = []; texts = []; smoke = [];
+  shake = 0; flash = 0; hitstop = 0; gunRecoil = 0; bolt = 0; demoT = 0.7; aiming = false;
+  buildBackdrop();
+}
+const DEMO_KINDS = ['n', 'r', 'b', 's'];
+function demoShot() {
+  const kind = DEMO_KINDS[demoKind++ % DEMO_KINDS.length];
+  const m = C.muzzle(view);
+  let aim = null;
+  for (let t = 0; t < 30; t++) {   // 敵の手前の地形に落ちる撃ち方を探す
+    const deg = -(38 + Math.random() * 34), pw = 0.45 + Math.random() * 0.5;
+    const r = deg * Math.PI / 180, d = pw * H * C.MAXDRAG;
+    const a = C.aimVec(m.x + Math.cos(r) * d, m.y + Math.sin(r) * d, view);
+    const shot = C.simulateShot(terrain, kind, a, view, null, 60);
+    aim = a;
+    if (shot.type === 'ground' && shot.x > W * 0.32 && shot.x < W * 0.98) break;
+  }
+  sel = kind; demoAng = aim.ang;
+  const v = C.launchVelocity(kind, aim, view);
+  bullets.push(newBullet(m.x, m.y, v.vx, v.vy, kind));
+  gunRecoil = 1; demoShots++;
+  puff(m.x, m.y, 3, H * .02);
 }
 
 const solid = (px, py) => C.solid(terrain, px, py, view);
@@ -124,7 +161,7 @@ const muzzle = () => C.muzzle(view);
 const aimVec = () => C.aimVec(aimX, aimY, view);
 function newBullet(x, y, vx, vy, kind) {
   return { x, y, vx, vy, kind, blast: C.AMMO[kind].blast, bounce: kind === 'b' ? 2 : 0, split: kind === 's',
-    gmul: C.AMMO[kind].gmul || 1, trail: [], life: 0 };
+    gmul: C.AMMO[kind].gmul || 1, wx: wind, trail: [], life: 0 };
 }
 function fire() {
   const A = C.AMMO[sel] || {}, maxAir = A.maxAir || 1;
@@ -151,7 +188,7 @@ function splitBullet(b) {
   if (!b || !b.split) return;
   const idx = bullets.indexOf(b); if (idx < 0) return;
   bullets.splice(idx, 1);
-  sSplit(); shake = Math.max(shake, 4);
+  sSplit(); if (scene !== 'title') shake = Math.max(shake, 4);
   const sp = H * 0.10;
   for (let i = -1; i <= 1; i++) {
     const nb = newBullet(b.x, b.y, b.vx + i * sp, b.vy - Math.abs(i) * sp * 0.4, 's');
@@ -179,7 +216,8 @@ function damage(f, amt, direct) {
 }
 function explode(px, py, blast) {
   const sc = Math.max(.45, blast / 0.084);
-  sBoom(); shake = Math.max(shake, 14 * sc); flash = Math.max(flash, .5 * sc);
+  const quiet = scene === 'title';   // タイトルの試し撃ちは、揺らさず光らせず、敵も倒さない
+  if (!quiet) { sBoom(); shake = Math.max(shake, 14 * sc); flash = Math.max(flash, .5 * sc); }
   rings.push({ x: px, y: py, r: H * .012, life: .45, max: .45, g: blast });
   const pn = Math.round(28 * sc);
   for (let i = 0; i < pn; i++) {
@@ -189,10 +227,21 @@ function explode(px, py, blast) {
   }
   puff(px, py, Math.max(3, Math.round(7 * sc)), H * blast * .8);
   let got = 0;
-  foes.forEach((f) => { if (!f.dead && C.inBlast(f, px, py, blast, view)) got += damage(f, 1, false); });
+  if (!quiet) foes.forEach((f) => { if (!f.dead && C.inBlast(f, px, py, blast, view)) got += damage(f, 1, false); });
   if (got) {
     comboCount += got; hitstop = Math.max(hitstop, .07); setTimeout(sHit, 60);
     if (comboCount > 1) texts.push({ x: px, y: py - H * .05, s: comboCount + 'たい！', life: 1.1, max: 1.1 });
+  }
+}
+
+/** ゲートに入った弾: 出口に光を散らす。跡の線は切る (入口から出口へ線を引かない)。 */
+function warp(b) {
+  b.trail = [];
+  sWarp(); shake = Math.max(shake, scene === 'play' ? 3 : 0);
+  const col = '#BDF4FF';
+  for (let i = 0; i < 14; i++) {
+    const a = Math.random() * Math.PI * 2, sp = (Math.random() * .25 + .05) * H;
+    parts.push({ x: b.x, y: b.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: H * .005 + 1, life: .45, max: .45, c: col });
   }
 }
 
@@ -212,19 +261,26 @@ function step(dt) {
   rings = rings.filter((r) => r.life > 0);
   texts.forEach((t) => { t.life -= dt; t.y -= H * .05 * dt; });
   texts = texts.filter((t) => t.life > 0);
-  clouds.forEach((c) => { c.x += c.v * dt; if (c.x > 1.25) c.x = -0.25; });
+  clouds.forEach((c) => { c.x += (c.v + wind * 0.05) * dt; if (c.x > 1.25) c.x = -0.25; if (c.x < -0.3) c.x = 1.2; });
+  gusts.forEach((g) => {
+    g.x += Math.sign(wind) * g.v * Math.min(1, Math.abs(wind) * 2.2) * dt * 0.9;
+    if (g.x > 1.1) { g.x = -0.1; g.y = 0.08 + Math.random() * 0.78; } else if (g.x < -0.1) { g.x = 1.1; g.y = 0.08 + Math.random() * 0.78; }
+  });
+  if (scene === 'title') { demoT -= dt; if (demoT <= 0) { demoShot(); demoT = 1.5 + Math.random() * 0.7; } }
   drops.forEach((d) => { d.y += d.v * dt; d.x += d.v * dt * 0.18; if (d.y > 1) { d.y = -0.05; d.x = Math.random(); } });
 
   foes.forEach((f) => C.moveFoe(f, dt));
 
   for (let bi = bullets.length - 1; bi >= 0; bi--) {
     const b = bullets[bi];
+    if (scene === 'title' && b.split && b.vy > 0 && b.life > .25) { splitBullet(b); continue; }   // 試し撃ちは頂点で割れる
     const h = dt / C.SUBSTEPS;
     for (let s = 0; s < C.SUBSTEPS; s++) {
       const px = b.x, py = b.y;
       C.advance(b, h, view);
+      if (C.usePortals(b, portals, view)) warp(b);
       let direct = null;
-      for (const f of foes) {
+      for (const f of (scene === 'title' ? [] : foes)) {
         if (f.dead) continue;
         if (Math.hypot(X(f.x) - b.x, Y(f.y) - b.y) < H * C.DIRECT_R) { direct = f; break; }
       }
@@ -271,11 +327,18 @@ function draw() {
 
   if (bolt > 0) { ctx.fillStyle = 'rgba(210,200,255,' + (bolt * bolt * .5) + ')'; ctx.fillRect(-24, -24, W + 48, H + 48); }
 
-  stars.forEach((s) => {
-    const tw = .5 + .5 * Math.sin(performance.now() / 600 + s.p);
-    ctx.fillStyle = 'rgba(255,255,255,' + (.25 + tw * .6) + ')';
-    ctx.beginPath(); ctx.arc(X(s.x), Y(s.y), s.r, 0, 7); ctx.fill();
-  });
+  if (stars.length) {
+    // またたきは 4 段階の明るさにまとめ、段ごとに 1 回で塗る (星 120 個を 1 つずつ塗ると遅い端末で効く)
+    const tNow = performance.now() / 600, buckets = [[], [], [], []];
+    stars.forEach((s) => buckets[Math.min(3, (.5 + .5 * Math.sin(tNow + s.p)) * 4 | 0)].push(s));
+    buckets.forEach((list, k) => {
+      if (!list.length) return;
+      ctx.fillStyle = 'rgba(255,255,255,' + (.25 + (k + .5) / 4 * .6) + ')';
+      ctx.beginPath();
+      list.forEach((s) => { ctx.moveTo(X(s.x) + s.r, Y(s.y)); ctx.arc(X(s.x), Y(s.y), s.r, 0, 7); });
+      ctx.fill();
+    });
+  }
 
   if (pal.orb) {
     const o = pal.orb, sx = X(o.x), sy = Y(o.y), sr = H * .075;
@@ -302,6 +365,16 @@ function draw() {
     ctx.lineTo(W + 24, H + 24); ctx.closePath(); ctx.fill();
   });
   if (castleBg) drawCastleBg();
+
+  if (wind) {
+    ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+    ctx.beginPath();
+    gusts.forEach((g) => {
+      const len = W * g.l * Math.min(2, Math.abs(wind) * 3) * Math.sign(wind);
+      ctx.moveTo(X(g.x), Y(g.y)); ctx.lineTo(X(g.x) + len, Y(g.y));
+    });
+    ctx.stroke();
+  }
 
   if (pal.rain) {
     ctx.strokeStyle = 'rgba(200,205,235,.28)'; ctx.lineWidth = 1.2;
@@ -345,6 +418,7 @@ function draw() {
     }
   });
 
+  drawPortals();
   foes.forEach((f) => { if (!f.dead) drawFoe(f); });
   drawGun();
 
@@ -385,6 +459,43 @@ function draw() {
 
   ctx.restore();
   if (flash > 0) { ctx.fillStyle = 'rgba(255,220,160,' + (flash * .3) + ')'; ctx.fillRect(0, 0, W, H); }
+}
+
+const PORTAL_COLORS = [['#7FE8FF', '127,232,255'], ['#FF9BE8', '255,155,232']];
+let portalSprites = [];   // 光と輪は動かないので、色ごとに 1 度だけ絵に描いておく (毎コマ塗ると遅い端末で効く)
+function portalSprite(ci) {
+  if (portalSprites[ci]) return portalSprites[ci];
+  const r = H * C.PORTAL_R, half = r * 1.9, [col, rgb] = PORTAL_COLORS[ci];
+  const c = document.createElement('canvas');
+  c.width = c.height = Math.ceil(half * 2 * DPR);
+  const g = c.getContext('2d'); g.scale(DPR, DPR);
+  const glow = g.createRadialGradient(half, half, r * .2, half, half, half);
+  glow.addColorStop(0, 'rgba(' + rgb + ',.55)'); glow.addColorStop(.5, 'rgba(' + rgb + ',.2)'); glow.addColorStop(1, 'rgba(' + rgb + ',0)');
+  g.fillStyle = glow; g.beginPath(); g.arc(half, half, half, 0, 7); g.fill();
+  g.fillStyle = 'rgba(12,4,28,.55)'; g.beginPath(); g.arc(half, half, r * .86, 0, 7); g.fill();
+  g.strokeStyle = col; g.lineWidth = r * .16;
+  g.beginPath(); g.arc(half, half, r, 0, 7); g.stroke();
+  return (portalSprites[ci] = { c, half });
+}
+function drawPortals() {
+  if (!portals.length) return;
+  const now = performance.now() / 1000, r = H * C.PORTAL_R;
+  ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = r * .1; ctx.lineCap = 'round';
+  portals.forEach((p, pi) => {
+    const sp = portalSprite(pi % PORTAL_COLORS.length);
+    [p.a, p.b].forEach((q, qi) => {
+      const x = X(q[0]), y = Y(q[1]);
+      ctx.drawImage(sp.c, x - sp.half, y - sp.half, sp.half * 2, sp.half * 2);
+      const rot = now * (qi ? -2.6 : 2.6) + pi;
+      ctx.beginPath();
+      for (let k = 0; k < 3; k++) {
+        const a0 = rot + k * 2.094;
+        ctx.moveTo(x + Math.cos(a0) * r * .62, y + Math.sin(a0) * r * .62);
+        ctx.arc(x, y, r * .62, a0, a0 + 1.0);
+      }
+      ctx.stroke();
+    });
+  });
 }
 
 function drawCastleBg() {
@@ -495,7 +606,7 @@ function drawFoe(f) {
 
 function drawGun() {
   const bx = X(C.GUN.x), by = Y(C.GUN.y);
-  const a = aiming ? aimVec().ang : -Math.PI / 4;
+  const a = aiming ? aimVec().ang : (scene === 'title' ? demoAng : -Math.PI / 4);
   ctx.save();
   ctx.fillStyle = pal.land;
   ctx.beginPath(); ctx.moveTo(bx - H * .036, by + 2); ctx.lineTo(bx + H * .036, by + 2);
@@ -522,7 +633,7 @@ function drawAim() {
   const a = aimVec(), m = muzzle();
   // ライフルの点は細かく並ぶので、小さめに描く (ふつうの弾の 6 割)
   const size = H * .005 * (sel === 'r' ? .6 : 1);
-  C.aimDots(terrain, sel, a, view).forEach((d) => {
+  C.aimDots(terrain, sel, a, view, { wind, portals }).forEach((d) => {
     ctx.fillStyle = 'rgba(255,240,214,' + (.16 + d.k * .5) + ')';
     ctx.beginPath(); ctx.arc(d.x, d.y, size * (.5 + d.k * .7), 0, 7); ctx.fill();
   });
@@ -573,7 +684,7 @@ function drawBelt() {
 }
 function toTitle() {
   scene = 'title'; show('pTitle', 1); show('pSelect', 0); show('pResult', 0);
-  show('hud', 0); show('belt', 0); show('hint', 0); lv = 0; buildBackdrop();
+  show('hud', 0); show('belt', 0); show('hint', 0); loadTitle();
 }
 function toSelect() {
   scene = 'select'; show('pTitle', 0); show('pResult', 0); show('hud', 0); show('belt', 0); show('hint', 0); show('pSelect', 1);
@@ -597,7 +708,8 @@ function toSelect() {
 const HINTS = { 0: '画面をおして、はなすと撃つ', 1: 'ライフルは連射できて、遠くまでとどく',
   4: 'はねる弾は かべで2回はねる', 8: 'さくれつ弾は とんでいる間にタップでわれる',
   6: 'かぶとの敵は 直撃でないと たおせない', 12: 'とぶ敵は 上下にうごく', 13: 'あるく敵は 足場を いったりきたり',
-  24: 'バリアの敵は 光がまたたいた すきに当てる' };
+  24: 'バリアの敵は 光がまたたいた すきに当てる',
+  30: 'かぜが 弾をおし流す。点線もかぜを うけている', 36: 'ゲートに入った弾は、もうひとつのゲートから出てくる' };
 function play(i) {
   loadLevel(i); scene = 'play';
   show('pTitle', 0); show('pSelect', 0); show('pResult', 0); show('hud', 1); show('belt', 1);
@@ -632,7 +744,7 @@ $('btnSnd').onclick = () => {
 $('btnSnd').style.opacity = soundOn ? '1' : '.4';
 $('ver').textContent = 'v' + VERSION + ' / 描ける' + Math.round(cv.clientHeight) + ' / 窓' + innerHeight;
 
-resize(); loadLevel(0); scene = 'title';
+resize(); loadTitle(); scene = 'title';
 requestAnimationFrame(loop);
 
 // 自動テストから中身をのぞくための入口
@@ -643,7 +755,9 @@ window.__app = {
     foes: foes.map((f) => ({ x: f.x, y: f.y, t: f.t, dead: f.dead, ph: f.ph })), lastResult, save: Object.assign({}, save) }),
   play,
   muzzle,
-  aimDots: (x, y) => C.aimDots(terrain, sel, C.aimVec(x, y, view), view),
+  aimDots: (x, y) => C.aimDots(terrain, sel, C.aimVec(x, y, view), view, { wind, portals }),
+  env: () => ({ wind, portals }),
+  demoShots: () => demoShots,
   canvasFont: () => textFont
 };
 })();

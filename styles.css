@@ -62,3 +62,13 @@ h1{font-size:40px;font-weight:600;letter-spacing:.1em;line-height:1.2;
 .hint{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 92px);text-align:center;
   font-size:14px;opacity:.8;pointer-events:none;transition:opacity .5s;text-shadow:0 2px 10px rgba(12,4,26,.95);}
 .ver{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 8px);font-size:10px;opacity:.45;letter-spacing:.04em;}
+
+/* かぜの強さと向き (画面の上の真ん中) */
+.wind{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top) + 14px);text-align:center;
+  font-size:14px;letter-spacing:.14em;color:#DFF6FF;pointer-events:none;text-shadow:0 2px 8px rgba(8,24,40,.95);}
+.wind:empty{display:none;}
+
+/* タイトル: 後ろのキャンバスに、ゲームの中身を並べて見せる */
+#pTitle{background:none;justify-content:flex-start;padding-top:calc(env(safe-area-inset-top) + 64px);pointer-events:none;}
+#pTitle .btn{pointer-events:auto;}
+#pTitle .lead{text-shadow:0 2px 10px rgba(12,4,26,.95);}

@@ -24,6 +24,21 @@
   const ramp = (x1, y1, x2, y2, t = 0.05) => [[x1, y1], [x2, y2], [x2, y2 + t], [x1, y1 + t]];
   const wall = (x, w, yTop, yBot = G_Y + 0.02) => [[x, yTop], [x + w, yTop], [x + w, yBot], [x, yBot]];
 
+  /**
+   * ほら穴: 天井と左右のかべで囲んだ空どう。床 (yFloor) より下は地面までうめる。
+   * 敵がこもる。爆風はかべを通りぬけるので、かべの外面から約 105px (0.245 x 幅) は離すこと。
+   * そうすると、外からは当てられず、ゲートで中に入れるしかなくなる。
+   */
+  const vault = (x1, x2, yFloor, yCeil, wt = 0.12, t = 0.12) => {
+    const polys = [
+      [[x1, yCeil - t], [x2, yCeil - t], [x2, yCeil], [x1, yCeil]],
+      [[x1, yCeil - t], [x1 + wt, yCeil - t], [x1 + wt, yFloor + 0.02], [x1, yFloor + 0.02]],
+      [[x2 - wt, yCeil - t], [x2, yCeil - t], [x2, yFloor + 0.02], [x2 - wt, yFloor + 0.02]]
+    ];
+    if (yFloor < G_Y - 0.001) polys.push([[x1, yFloor], [x2, yFloor], [x2, G_Y + 0.02], [x1, G_Y + 0.02]]);
+    return polys;
+  };
+
   const E = (x, y = G_Y) => ({ x, y, t: 'n' });                   // ふつう
   const EA = (x, y = G_Y) => ({ x, y, t: 'a' });                  // かぶと (直撃でないと倒せない)
   const EF = (x, y, amp = 0.06) => ({ x, y, t: 'f', amp });       // とぶ
@@ -91,9 +106,49 @@
     { ammo: { n: 4, s: 2 }, terrain: [ground(-0.1, 1.1), slab(0.34, 0.58, 0.745), slab(0.62, 0.86, 0.605)],
       enemies: [ES(0.44, 0.745), ES(0.72, 0.605), E(0.90, 0.605), E(0.27)] },
     { ammo: { n: 5, b: 1, s: 1 }, terrain: [ground(-0.1, 1.1), wall(0.30, 0.08, 0.555), slab(0.42, 0.62, 0.705), slab(0.66, 0.90, 0.635), wall(0.90, 0.08, 0.585)],
-      enemies: [ES(0.335, 0.555), EA(0.50, 0.705), EF(0.75, 0.50, 0.07), ES(0.94, 0.585), E(0.26)] }
+      enemies: [ES(0.335, 0.555), EA(0.50, 0.705), EF(0.75, 0.50, 0.07), ES(0.94, 0.585), E(0.26)] },
+
+    /* ---- かぜ (かぜが弾を横におし流す。+ は右向き) ---- */
+    { wind: 0.30, ammo: { n: 3 }, terrain: [ground(-0.1, 1.1), wall(0.46, 0.07, 0.70)],
+      enemies: [E(0.70), E(0.90)] },
+    { wind: -0.35, ammo: { n: 4 }, terrain: [ground(-0.1, 1.1), slab(0.55, 0.95, 0.72)],
+      enemies: [E(0.62, 0.72), E(0.84, 0.72), E(0.40)] },
+    { wind: 0.45, ammo: { n: 3, b: 2 }, terrain: [ground(-0.1, 1.1), wall(0.30, 0.08, 0.60), wall(0.62, 0.07, 0.66)],
+      enemies: [E(0.45), E(0.78), EA(0.90)] },
+    { wind: -0.50, ammo: { n: 4, s: 2 }, terrain: [ground(-0.1, 1.1), slab(0.40, 0.70, 0.70), slab(0.72, 1.04, 0.60)],
+      enemies: [E(0.52, 0.70), ES(0.86, 0.60), EF(0.62, 0.45, 0.06)] },
+    { wind: 0.35, ammo: { n: 4 }, terrain: [ground(-0.1, 1.1), wall(0.50, 0.08, 0.58)],
+      enemies: [EF(0.72, 0.40, 0.07), EW(0.80, G_Y, 0.62, 0.95), E(0.30)] },
+    { wind: -0.20, ammo: { n: 4, b: 2, s: 2 }, terrain: [ground(-0.1, 1.1), wall(0.34, 0.06, 0.62), slab(0.50, 0.74, 0.76), slab(0.80, 1.04, 0.60)],
+      enemies: [E(0.60, 0.76), EA(0.88, 0.60), ES(0.37, 0.62), EF(0.70, 0.44, 0.06)] },
+
+    /* ---- ゲート (入った弾は、もうひとつのゲートから出る) ---- */
+    { ammo: { n: 3 }, terrain: [ground(-0.1, 1.1), ...vault(0.50, 1.04, G_Y, 0.62)],
+      portals: [{ a: [0.36, 0.64], b: [0.73, 0.73] }],
+      enemies: [E(0.77), E(0.34)] },
+    { ammo: { n: 4 }, terrain: [ground(-0.1, 1.1), ...vault(0.54, 1.06, 0.74, 0.56)],
+      portals: [{ a: [0.40, 0.64], b: [0.80, 0.67] }],
+      enemies: [E(0.80, 0.74), E(0.38)] },
+    { ammo: { n: 4, b: 1 }, terrain: [ground(-0.1, 1.1), ...vault(0.42, 1.10, G_Y, 0.60)],
+      portals: [{ a: [0.32, 0.64], b: [0.68, 0.71] }],
+      enemies: [E(0.76), EA(0.30)] },
+    { ammo: { n: 4, s: 1 }, terrain: [ground(-0.1, 1.1), ...vault(0.52, 1.08, 0.70, 0.52)],
+      portals: [{ a: [0.40, 0.64], b: [0.76, 0.63] }],
+      enemies: [E(0.80, 0.70), EA(0.36)] },
+    { ammo: { n: 4, b: 2 }, terrain: [ground(-0.1, 1.1), ...vault(0.46, 1.08, G_Y, 0.58)],
+      portals: [{ a: [0.36, 0.64], b: [0.69, 0.69] }],
+      enemies: [E(0.77), ES(0.32), EF(0.62, 0.40, 0.06)] },
+    { ammo: { n: 4, b: 1, s: 1 }, terrain: [ground(-0.1, 1.1), ...vault(0.48, 1.10, G_Y, 0.58)],
+      portals: [{ a: [0.36, 0.64], b: [0.71, 0.69] }, { a: [0.55, 0.30], b: [0.18, 0.50] }],
+      enemies: [E(0.79), EA(0.40), EW(0.20, G_Y, 0.16, 0.30)] }
   ];
   const PER_CHAPTER = 6;
+
+  /** タイトル画面に飾る景色。ゲームの中身をそのまま並べる (敵は全部の種類)。 */
+  const TITLE = {
+    terrain: [ground(-0.1, 1.1), slab(0.40, 0.62, 0.80, 0.12), slab(0.66, 1.08, 0.72, 0.34)],
+    enemies: [E(0.27), E(0.46, 0.80), EA(0.57, 0.80), ES(0.74, 0.72), EW(0.87, 0.72, 0.80, 0.94), EF(0.90, 0.54, 0.05)]
+  };
 
   /* ========== 空の景色 (6 面ごとに変わる) ========== */
   const SKIES = [
@@ -105,13 +160,19 @@
       land: '#0A0A1E', edge: 'rgba(160,200,255,.5)', orb: { x: .74, y: .26, c: '#EAF2FF', g: '150,190,255' }, stars: 70 },
     { name: 'あさ', sky: ['#16305E', '#3B68A6', '#8AACD8', '#F0C3AE', '#FFE3BA'],
       mts: ['rgba(110,140,190,.5)', 'rgba(62,86,134,.7)', 'rgba(26,38,72,.92)'],
-      land: '#16223C', edge: 'rgba(255,245,225,.6)', orb: { x: .70, y: .45, c: '#FFF8E4', g: '255,230,190' }, stars: 0 },
+      land: '#16223C', edge: 'rgba(255,245,225,.6)', orb: { x: .70, y: .45, c: '#FFF8E4', g: '255,230,190' }, stars: 0, clouds: 1 },
     { name: 'あらし', sky: ['#12111C', '#221D33', '#392A45', '#563849', '#7C5354'],
       mts: ['rgba(92,80,110,.45)', 'rgba(58,48,72,.7)', 'rgba(24,20,34,.94)'],
       land: '#12101C', edge: 'rgba(206,196,255,.5)', orb: null, stars: 0, rain: 1 },
     { name: 'おしろ', sky: ['#121634', '#232C62', '#434A8A', '#8A6C9C', '#E6B49C'],
       mts: ['rgba(88,96,150,.45)', 'rgba(56,62,110,.7)', 'rgba(30,34,66,.95)'],
-      land: '#262B42', edge: 'rgba(236,226,206,.6)', orb: { x: .84, y: .17, c: '#F4F1E6', g: '200,210,255' }, stars: 40, castle: 1 }
+      land: '#262B42', edge: 'rgba(236,226,206,.6)', orb: { x: .84, y: .17, c: '#F4F1E6', g: '200,210,255' }, stars: 40, castle: 1 },
+    { name: 'かぜ', sky: ['#0E2A4A', '#1F5A82', '#58A6B8', '#B9DCC0', '#F4EBC0'],
+      mts: ['rgba(70,140,160,.5)', 'rgba(40,96,122,.7)', 'rgba(16,52,72,.92)'],
+      land: '#0F2A38', edge: 'rgba(255,248,214,.65)', orb: { x: .72, y: .30, c: '#FFFBE6', g: '255,244,200' }, stars: 0, clouds: 1 },
+    { name: 'ほし', sky: ['#05030F', '#150B33', '#2C1459', '#5A2A7A', '#B04A82'],
+      mts: ['rgba(110,60,150,.4)', 'rgba(70,36,110,.65)', 'rgba(30,14,56,.94)'],
+      land: '#0D0620', edge: 'rgba(180,255,244,.65)', orb: { x: .26, y: .22, c: '#FFD9F2', g: '255,150,230' }, stars: 120 }
   ];
   const skyOf = (i) => SKIES[Math.min(SKIES.length - 1, Math.floor(i / PER_CHAPTER))];
 
@@ -161,9 +222,13 @@
     return { vx: aim.ux * s, vy: aim.uy * s };
   }
 
-  /** 弾を h 秒ぶん進める (重力つき)。 */
+  /**
+   * 弾を h 秒ぶん進める (重力つき)。
+   * b.wx があれば、かぜ (横向きの加速。H/秒²。+ は右) でおし流される。
+   */
   function advance(b, h, view) {
     b.vy += GRAV * (b.gmul || 1) * view.H * h;
+    if (b.wx) b.vx += b.wx * view.H * h;
     b.x += b.vx * h;
     b.y += b.vy * h;
     b.life = (b.life || 0) + h;
@@ -180,6 +245,31 @@
   }
   const solid = (terrain, px, py, view) => terrain.some((p) => inPoly(px, py, p, view));
 
+  /*
+   * ゲート: 2 つで 1 組。入った弾は、もう一方から同じ速さのまま出る (どちら向きにも使える)。
+   * 出た直後にまた吸われないよう、b.gate に出口を覚えて、出口の輪を出るまで無視する。
+   * @returns {boolean} 飛ばしたら true
+   */
+  const PORTAL_R = 0.045;   // 輪の半径 (H に対する割合)
+  function usePortals(b, portals, view) {
+    if (!portals || !portals.length) return false;
+    const r = view.H * PORTAL_R;
+    if (b.gate) {
+      if (Math.hypot(b.x - b.gate.x, b.y - b.gate.y) > r * 1.1) b.gate = null;
+      else return false;
+    }
+    for (const p of portals) {
+      for (const [from, to] of [[p.a, p.b], [p.b, p.a]]) {
+        if (Math.hypot(from[0] * view.W - b.x, from[1] * view.H - b.y) < r) {
+          b.x = to[0] * view.W; b.y = to[1] * view.H;
+          b.gate = { x: b.x, y: b.y };
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   const outOfBounds = (b, view) =>
     b.x < -view.W * 0.25 || b.x > view.W * 1.25 || b.y > view.H * 1.25 || b.life > 9;
 
@@ -188,15 +278,17 @@
    * targets を渡すと、直撃したときにその番号も返す。
    * @returns {{type:'direct'|'ground'|'out', x:number, y:number, target?:number, path:number[][]}}
    */
-  function simulateShot(terrain, kind, aim, view, targets, fps) {
+  function simulateShot(terrain, kind, aim, view, targets, fps, env) {
     const v = launchVelocity(kind, aim, view);
     const m = muzzle(view);
-    const b = { x: m.x, y: m.y, vx: v.vx, vy: v.vy, gmul: AMMO[kind].gmul || 1, life: 0 };
+    const e = env || {};
+    const b = { x: m.x, y: m.y, vx: v.vx, vy: v.vy, gmul: AMMO[kind].gmul || 1, life: 0, wx: e.wind || 0 };
     const h = 1 / (fps || 60) / SUBSTEPS;
     const path = [];
     const list = targets || [];
     for (let n = 0; n < 60 * SUBSTEPS * 10; n++) {
       advance(b, h, view);
+      if (usePortals(b, e.portals, view)) path.push(null);   // null は飛んだ印 (線をつながない)
       if (n % SUBSTEPS === 0) path.push([b.x, b.y]);
       for (let t = 0; t < list.length; t++) {
         if (Math.hypot(list[t].x * view.W - b.x, list[t].y * view.H - b.y) < view.H * DIRECT_R) {
@@ -217,10 +309,11 @@
    * k は先へ行くほど 0 に近づく (薄く・小さく描くため)。
    */
   const AIM_TIME = 0.72, AIM_DOT_T = 0.04, AIM_DOT_PX = 9;
-  function aimDots(terrain, kind, aim, view) {
+  function aimDots(terrain, kind, aim, view, env) {
     const v = launchVelocity(kind, aim, view);
     const m = muzzle(view);
-    const b = { x: m.x, y: m.y, vx: v.vx, vy: v.vy, gmul: AMMO[kind].gmul || 1, life: 0 };
+    const e = env || {};
+    const b = { x: m.x, y: m.y, vx: v.vx, vy: v.vy, gmul: AMMO[kind].gmul || 1, life: 0, wx: e.wind || 0 };
     const byDistance = kind === 'r';
     const h = 1 / 400;
     const dots = [];
@@ -228,8 +321,9 @@
     for (let t = 0; t < AIM_TIME; t += h) {
       const px = b.x, py = b.y;
       advance(b, h, view);
+      if (usePortals(b, e.portals, view)) run = 0;
+      else run += Math.hypot(b.x - px, b.y - py);
       if (solid(terrain, b.x, b.y, view) || b.y > view.H * 1.1 || b.x > view.W * 1.15) break;
-      run += Math.hypot(b.x - px, b.y - py);
       const due = byDistance ? run >= AIM_DOT_PX : b.life >= nextT - 1e-9;
       if (due) {
         dots.push({ x: b.x, y: b.y, k: 1 - b.life / AIM_TIME });
@@ -245,9 +339,10 @@
   const shieldOpen = (ph) => (ph % SHIELD_P) < SHIELD_OPEN;
 
   /** 面の敵を、動かせる形にして返す。y は足もとではなく体の中心。 */
-  function makeFoes(i, rnd) {
+  const makeFoes = (i, rnd) => foesFrom(LEVELS[i].enemies, rnd);
+  function foesFrom(enemies, rnd) {
     const random = rnd || Math.random;
-    return LEVELS[i].enemies.map((e) => ({
+    return enemies.map((e) => ({
       bx: e.x, by: e.y - ER, x: e.x, y: e.y - ER, t: e.t, hp: e.t === 'a' ? 2 : 1, dead: false,
       amp: e.amp || 0, x1: e.x1, x2: e.x2, dir: 1, ph: random() * 6, flashT: 0
     }));
@@ -295,6 +390,7 @@
     a.r = rifleFor(i);
     return a;
   }
+  const envOf = (i) => ({ wind: LEVELS[i].wind || 0, portals: LEVELS[i].portals || [] });
   const kindsIn = (i) => ORDER.filter((k) => LEVELS[i].ammo[k] || k === 'r');
   const coreLeft = (ammo) => CORE_KINDS.reduce((a, k) => a + (ammo[k] || 0), 0);
   const totalLeft = (ammo) => ORDER.reduce((a, k) => a + (ammo[k] || 0), 0);
@@ -322,10 +418,10 @@
   }
 
   return {
-    G_Y, LEVELS, PER_CHAPTER, SKIES, skyOf, AMMO, ORDER, CORE_KINDS, rifleFor,
+    G_Y, LEVELS, PER_CHAPTER, TITLE, vault, SKIES, skyOf, AMMO, ORDER, CORE_KINDS, rifleFor,
     GUN, GRAV, VMAX, MAXDRAG, MIN_POWER, ER, DIRECT_R, SUBSTEPS,
     muzzle, aimVec, launchVelocity, advance, inPoly, solid, outOfBounds, simulateShot,
-    AIM_TIME, AIM_DOT_T, AIM_DOT_PX, aimDots,
+    AIM_TIME, AIM_DOT_T, AIM_DOT_PX, aimDots, PORTAL_R, usePortals, envOf, foesFrom,
     SHIELD_P, SHIELD_OPEN, SHIELD_WARN, shieldOpen, makeFoes, moveFoe, applyHit, inBlast,
     startingAmmo, kindsIn, coreLeft, totalLeft, starsFor, isOpen, recordStars, frameDt
   };

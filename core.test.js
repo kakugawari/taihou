@@ -14,36 +14,50 @@ function aimAt(deg, power, view) {
 }
 
 /**
- * その面で、それぞれの敵に「当てられる撃ち方」があるかを総当たりで探す。
- * 直撃するか、爆風が届く所に落ちれば当てられたとみなす。
- * @returns {boolean[]} 敵ごとに当てられるか
+ * その面で、それぞれの敵に「当てられる撃ち方」が何通りあるかを総当たりで数える。
+ * 直撃するか、爆風が届く所に落ちれば当てられたとみなす。かぜとゲートも効かせる。
+ * @param {object} [env] 省くと、その面のかぜとゲート
+ * @returns {number[]} 敵ごとの、当たる撃ち方の数
  */
-function reachable(i, view) {
+// 「ぎりぎり当たる」だけの敵がいないこと。元の 30 面は、敵ごとに最低 22 通り (新しい面も 21 以上)。
+// 数は MIN_WAYS で頭打ちになる (それ以上は数えない)。0 は本当に 0。
+const MIN_WAYS = 10;
+const reachCache = new Map();   // 同じ面・同じ条件の総当たりは 1 回だけ (遅いので)
+function reachable(i, view, env) {
+  const key = i + ':' + (env ? JSON.stringify(env) : 'own');
+  if (!reachCache.has(key)) reachCache.set(key, reachableUncached(i, view, env));
+  return reachCache.get(key);
+}
+function reachableUncached(i, view, env) {
   const lv = Core.LEVELS[i];
   const foes = Core.makeFoes(i, () => 0);
-  const hit = foes.map(() => false);
+  const hit = foes.map(() => 0);
+  const enough = () => hit.every((n) => n >= MIN_WAYS);   // 全員が十分なら、数えるのをやめる (速くするため)
+  search:
   for (const kind of Core.kindsIn(i)) {
     const blast = Core.AMMO[kind].blast;
-    for (let deg = -150; deg <= -1 && hit.includes(false); deg += 1) {
+    for (let deg = -150; deg <= -1; deg += 1) {
       for (let p = Core.MIN_POWER; p <= 1.0001; p += 0.02) {
         const aim = aimAt(deg, Math.min(1, p), view);
-        const r = Core.simulateShot(lv.terrain, kind, aim, view, foes, 60);
-        if (r.type === 'direct') hit[r.target] = true;
+        const r = Core.simulateShot(lv.terrain, kind, aim, view, foes, 60, env || Core.envOf(i));
+        if (r.type === 'direct') hit[r.target]++;
         if (r.type === 'ground') {
-          foes.forEach((f, k) => { if (Core.inBlast(f, r.x, r.y, blast, view)) hit[k] = true; });
+          foes.forEach((f, k) => { if (Core.inBlast(f, r.x, r.y, blast, view)) hit[k]++; });
         }
+        if (r.type !== 'out' && enough()) break search;
       }
     }
   }
   return hit;
 }
 
-test('どの面のどの敵にも、当てられる撃ち方がある (iPhone 16 Plus の画面で)', () => {
+
+test('どの面のどの敵にも、当てられる撃ち方が十分ある (iPhone 16 Plus の画面で)', () => {
   const bad = [];
   for (let i = 0; i < Core.LEVELS.length; i++) {
-    reachable(i, VIEW).forEach((ok, k) => { if (!ok) bad.push(`${i + 1}面の${k + 1}体目`); });
+    reachable(i, VIEW).forEach((n, k) => { if (n < MIN_WAYS) bad.push(`${i + 1}面の${k + 1}体目 (${n} 通り)`); });
   }
-  assert.deepStrictEqual(bad, [], '当てられない敵: ' + bad.join(', '));
+  assert.deepStrictEqual(bad, [], '当てにくい敵: ' + bad.join(', '));
 });
 
 test('面の数と景色: 6 面ごとに景色が変わり、景色の数ぶんある', () => {
@@ -51,6 +65,8 @@ test('面の数と景色: 6 面ごとに景色が変わり、景色の数ぶん�
   assert.strictEqual(Core.skyOf(0).name, 'ゆうぐれ');
   assert.strictEqual(Core.skyOf(6).name, 'よる');
   assert.strictEqual(Core.skyOf(29).name, 'おしろ');
+  assert.strictEqual(Core.skyOf(30).name, 'かぜ');
+  assert.strictEqual(Core.skyOf(41).name, 'ほし');
 });
 
 test('どの面も、敵が地形の中に埋まっていない', () => {
@@ -180,9 +196,106 @@ test('ねらいの点線は、地形の中に点を打たない', () => {
     const t = Core.LEVELS[i].terrain;
     for (const kind of ['n', 'r']) {
       for (const deg of [-80, -50, -20, -5]) {
-        Core.aimDots(t, kind, aimAt(deg, 1, VIEW), VIEW).forEach((d) =>
+        Core.aimDots(t, kind, aimAt(deg, 1, VIEW), VIEW, Core.envOf(i)).forEach((d) =>
           assert.ok(!Core.solid(t, d.x, d.y, VIEW), `${i + 1}面 ${kind} ${deg}°: 地形の中に点`));
       }
     }
   }
+});
+
+/* ========== かぜ・ゲート・タイトル ========== */
+const WIND_LEVELS = [30, 31, 32, 33, 34, 35];
+const GATE_LEVELS = [36, 37, 38, 39, 40, 41];
+
+test('かぜ: 弾を横におし流す。向きは符号どおりで、かぜが無ければ流れない', () => {
+  const run = (wx) => {
+    const b = { x: 100, y: 100, vx: 0, vy: 0, gmul: 1, wx };
+    for (let n = 0; n < 60; n++) Core.advance(b, 1 / 60, VIEW);
+    return b;
+  };
+  assert.strictEqual(run(0).x, 100);
+  assert.ok(run(0.4).x > 100 + 100, `右へ流れる: ${run(0.4).x}`);
+  assert.ok(run(-0.4).x < 100 - 100, `左へ流れる: ${run(-0.4).x}`);
+  assert.ok(Math.abs(run(0.4).y - run(0).y) < 1e-9, 'かぜは縦には効かない');
+});
+
+test('かぜの面は、かぜが 0 ではなく、点線もかぜで曲がる', () => {
+  for (const i of WIND_LEVELS) {
+    const w = Core.envOf(i).wind;
+    assert.ok(Math.abs(w) >= 0.2 && Math.abs(w) <= 0.5, `${i + 1}面のかぜ: ${w}`);
+    const t = Core.LEVELS[i].terrain;
+    let aim = null;   // 近くのかべにぶつからず、点が十分出る撃ち方を探す
+    for (let deg = -89; deg <= -40 && !aim; deg += 1) {
+      const a = aimAt(deg, 1, VIEW);
+      if (Core.aimDots(t, 'n', a, VIEW, { wind: 0, portals: [] }).length >= 12) aim = a;
+    }
+    assert.ok(aim, `${i + 1}面: 点線を比べられる撃ち方が無い`);
+    const plain = Core.aimDots(t, 'n', aim, VIEW, { wind: 0, portals: [] });
+    const windy = Core.aimDots(t, 'n', aim, VIEW, Core.envOf(i));
+    const n = Math.min(plain.length, windy.length) - 1;   // 同じ番号の点どうしで比べる (終わる所は違いうる)
+    assert.ok(n >= 8, `${i + 1}面: 点が少なくて比べられない (${n})`);
+    assert.ok(Math.sign(windy[n].x - plain[n].x) === Math.sign(w), `${i + 1}面: 点線がかぜの向きに曲がる`);
+  }
+  assert.strictEqual(Core.envOf(0).wind, 0, 'ふつうの面にかぜは無い');
+});
+
+test('ゲート: 入口に入った弾は出口から出る。どちら向きでも使え、出た直後にまた吸われない', () => {
+  const portals = [{ a: [0.3, 0.4], b: [0.8, 0.7] }];
+  const b = { x: 0.3 * VIEW.W + 5, y: 0.4 * VIEW.H, vx: 100, vy: 0 };
+  assert.ok(Core.usePortals(b, portals, VIEW), '入口で飛ぶ');
+  assert.strictEqual(Math.round(b.x), Math.round(0.8 * VIEW.W));
+  assert.strictEqual(Math.round(b.y), Math.round(0.7 * VIEW.H));
+  assert.strictEqual(b.vx, 100, '速さはそのまま');
+  assert.ok(!Core.usePortals(b, portals, VIEW), '出口にいる間は、また吸われない');
+  b.x += VIEW.H * Core.PORTAL_R * 1.5;                       // 出口の輪から出る
+  assert.ok(!Core.usePortals(b, portals, VIEW));
+  assert.strictEqual(b.gate, null, '輪を出たら覚えを忘れる');
+  const back = { x: 0.8 * VIEW.W, y: 0.7 * VIEW.H + 10, vx: 0, vy: 50 };
+  assert.ok(Core.usePortals(back, portals, VIEW), '出口側から入っても、入口へ出る');
+  assert.strictEqual(Math.round(back.x), Math.round(0.3 * VIEW.W));
+  const far = { x: 10, y: 10, vx: 0, vy: 0 };
+  assert.ok(!Core.usePortals(far, portals, VIEW), '離れていれば何も起きない');
+});
+
+test('ゲートの輪は、地形に重ならず、画面の中にある', () => {
+  for (const i of GATE_LEVELS) {
+    const t = Core.LEVELS[i].terrain, r = VIEW.H * Core.PORTAL_R;
+    assert.ok(Core.LEVELS[i].portals.length >= 1, `${i + 1}面にゲートが無い`);
+    for (const p of Core.LEVELS[i].portals) {
+      for (const q of [p.a, p.b]) {
+        assert.ok(q[0] > 0.05 && q[0] < 0.95 && q[1] > 0.1 && q[1] < 0.85, `${i + 1}面: 輪が画面のふちに近い (${q})`);
+        for (let k = 0; k < 24; k++) {
+          const a = k / 24 * Math.PI * 2;
+          assert.ok(!Core.solid(t, q[0] * VIEW.W + Math.cos(a) * r, q[1] * VIEW.H + Math.sin(a) * r, VIEW),
+            `${i + 1}面: ゲートの輪が地形に重なる (${q})`);
+        }
+      }
+    }
+  }
+});
+
+test('ゲートの面は、ゲートを使わないと当てられない敵がいる (ゲートが効いている)', () => {
+  for (const i of GATE_LEVELS) {
+    const without = reachable(i, VIEW, { wind: 0, portals: [] });
+    assert.ok(without.some((n) => n === 0), `${i + 1}面: ゲートなしでも全員に当たってしまう (${without.join(',')})`);
+  }
+});
+
+test('ゲートがあると、ゲートなしでは当たらない敵に当たる', () => {
+  for (const i of GATE_LEVELS) {
+    const without = reachable(i, VIEW, { wind: 0, portals: [] });
+    const withGate = reachable(i, VIEW);
+    without.forEach((n, k) => {
+      if (n === 0) assert.ok(withGate[k] >= MIN_WAYS, `${i + 1}面の${k + 1}体目: ゲートを通して ${withGate[k]} 通りしか当たらない`);
+    });
+  }
+});
+
+test('タイトルの飾り: 敵は全部の種類が並び、地形に埋まらず、画面の中にある', () => {
+  const foes = Core.foesFrom(Core.TITLE.enemies, () => 0);
+  assert.deepStrictEqual([...new Set(foes.map((f) => f.t))].sort(), ['a', 'f', 'n', 'sh', 'w']);
+  foes.forEach((f) => {
+    assert.ok(!Core.solid(Core.TITLE.terrain, f.x * VIEW.W, f.y * VIEW.H, VIEW), `敵が地形に埋まる: ${f.t}`);
+    assert.ok(f.x > 0.1 && f.x < 0.98 && f.y > 0.3, `画面の外: ${f.t} (${f.x}, ${f.y})`);
+  });
 });
