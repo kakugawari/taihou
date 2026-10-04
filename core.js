@@ -108,20 +108,6 @@
     { ammo: { n: 5, b: 1, s: 1 }, terrain: [ground(-0.1, 1.1), wall(0.30, 0.08, 0.555), slab(0.42, 0.62, 0.705), slab(0.66, 0.90, 0.635), wall(0.90, 0.08, 0.585)],
       enemies: [ES(0.335, 0.555), EA(0.50, 0.705), EF(0.75, 0.50, 0.07), ES(0.94, 0.585), E(0.26)] },
 
-    /* ---- かぜ (かぜが弾を横におし流す。+ は右向き) ---- */
-    { wind: 0.30, ammo: { n: 3 }, terrain: [ground(-0.1, 1.1), wall(0.46, 0.07, 0.70)],
-      enemies: [E(0.70), E(0.90)] },
-    { wind: -0.35, ammo: { n: 4 }, terrain: [ground(-0.1, 1.1), slab(0.55, 0.95, 0.72)],
-      enemies: [E(0.62, 0.72), E(0.84, 0.72), E(0.40)] },
-    { wind: 0.45, ammo: { n: 3, b: 2 }, terrain: [ground(-0.1, 1.1), wall(0.30, 0.08, 0.60), wall(0.62, 0.07, 0.66)],
-      enemies: [E(0.45), E(0.78), EA(0.90)] },
-    { wind: -0.50, ammo: { n: 4, s: 2 }, terrain: [ground(-0.1, 1.1), slab(0.40, 0.70, 0.70), slab(0.72, 1.04, 0.60)],
-      enemies: [E(0.52, 0.70), ES(0.86, 0.60), EF(0.62, 0.45, 0.06)] },
-    { wind: 0.35, ammo: { n: 4 }, terrain: [ground(-0.1, 1.1), wall(0.50, 0.08, 0.58)],
-      enemies: [EF(0.72, 0.40, 0.07), EW(0.80, G_Y, 0.62, 0.95), E(0.30)] },
-    { wind: -0.20, ammo: { n: 4, b: 2, s: 2 }, terrain: [ground(-0.1, 1.1), wall(0.34, 0.06, 0.62), slab(0.50, 0.74, 0.76), slab(0.80, 1.04, 0.60)],
-      enemies: [E(0.60, 0.76), EA(0.88, 0.60), ES(0.37, 0.62), EF(0.70, 0.44, 0.06)] },
-
     /* ---- ゲート (入った弾は、もうひとつのゲートから出る) ---- */
     { ammo: { n: 3 }, terrain: [ground(-0.1, 1.1), ...vault(0.50, 1.04, G_Y, 0.62)],
       portals: [{ a: [0.36, 0.64], b: [0.73, 0.73] }],
@@ -140,7 +126,50 @@
       enemies: [E(0.77), ES(0.32), EF(0.62, 0.40, 0.06)] },
     { ammo: { n: 4, b: 1, s: 1 }, terrain: [ground(-0.1, 1.1), ...vault(0.48, 1.10, G_Y, 0.58)],
       portals: [{ a: [0.36, 0.64], b: [0.71, 0.69] }, { a: [0.55, 0.30], b: [0.18, 0.50] }],
-      enemies: [E(0.79), EA(0.40), EW(0.20, G_Y, 0.16, 0.30)] }
+      enemies: [E(0.79), EA(0.40), EW(0.20, G_Y, 0.16, 0.30)] },
+
+    /* ---- そら: ゲートの出口をいろいろな所へ (ゆかに近い出口・高い塔・かぶと・バリア・あるく・とぶ) ---- */
+    { ammo: { n: 3 }, terrain: [ground(-0.1, 1.1), ...vault(0.50, 1.04, G_Y, 0.62)],
+      portals: [{ a: [0.40, 0.64], b: [0.74, 0.81] }],
+      enemies: [E(0.78), E(0.30)] },
+    { ammo: { n: 4 }, terrain: [ground(-0.1, 1.1), ...vault(0.50, 1.06, 0.72, 0.52)],
+      portals: [{ a: [0.40, 0.64], b: [0.74, 0.63] }],
+      enemies: [E(0.76, 0.72), E(0.80, 0.72), E(0.34)] },
+    { ammo: { n: 4, b: 1 }, terrain: [ground(-0.1, 1.1), ...vault(0.46, 1.08, G_Y, 0.58)],
+      portals: [{ a: [0.32, 0.64], b: [0.69, 0.69] }],
+      enemies: [EA(0.77), E(0.34)] },
+    { ammo: { n: 4, s: 1 }, terrain: [ground(-0.1, 1.1), ...vault(0.50, 1.04, G_Y, 0.62)],
+      portals: [{ a: [0.32, 0.64], b: [0.73, 0.73] }],
+      enemies: [ES(0.77), E(0.32)] },
+    { ammo: { n: 4, b: 1 }, terrain: [ground(-0.1, 1.1), ...vault(0.50, 1.04, G_Y, 0.62)],
+      portals: [{ a: [0.36, 0.64], b: [0.72, 0.73] }],
+      enemies: [EW(0.80, G_Y, 0.76, 0.84), E(0.30)] },
+    { ammo: { n: 4, b: 2 }, terrain: [ground(-0.1, 1.1), ...vault(0.46, 1.08, G_Y, 0.52)],
+      portals: [{ a: [0.36, 0.64], b: [0.74, 0.63] }],
+      enemies: [EF(0.78, 0.68, 0.05), E(0.34)] },
+
+    /* ---- ぎんが: ゲートが 2 組の面 (ほら穴と、天井の上) と、ほら穴に 2 体 ---- */
+    { ammo: { n: 4, b: 1, s: 1 }, terrain: [ground(-0.1, 1.1), ...vault(0.46, 1.08, G_Y, 0.60)],
+      portals: [{ a: [0.32, 0.64], b: [0.69, 0.71] },
+        { a: [0.24, 0.44], b: [0.64, 0.30] }],
+      enemies: [E(0.77), E(0.80, 0.48), E(0.30)] },
+    { ammo: { n: 4, b: 1, s: 1 }, terrain: [ground(-0.1, 1.1), ...vault(0.50, 1.06, 0.66, 0.46)],
+      portals: [{ a: [0.40, 0.64], b: [0.74, 0.57] }],
+      enemies: [E(0.78, 0.66), EA(0.36), ES(0.22)] },
+    { ammo: { n: 5, b: 1, s: 1 }, terrain: [ground(-0.1, 1.1), ...vault(0.44, 1.10, G_Y, 0.58)],
+      portals: [{ a: [0.32, 0.64], b: [0.67, 0.66] }],
+      enemies: [EA(0.74), ES(0.84), E(0.30)] },
+    { ammo: { n: 5, b: 1, s: 1 }, terrain: [ground(-0.1, 1.1), ...vault(0.44, 1.10, G_Y, 0.50)],
+      portals: [{ a: [0.28, 0.64], b: [0.67, 0.61] }],
+      enemies: [EW(0.80, G_Y, 0.74, 0.84), EF(0.78, 0.62, 0.05), E(0.30)] },
+    { ammo: { n: 5, b: 1, s: 1 }, terrain: [ground(-0.1, 1.1), ...vault(0.46, 1.08, G_Y, 0.60)],
+      portals: [{ a: [0.32, 0.64], b: [0.69, 0.71] },
+        { a: [0.24, 0.44], b: [0.64, 0.30] }],
+      enemies: [E(0.77), EA(0.80, 0.48), EW(0.24, G_Y, 0.18, 0.34)] },
+    { ammo: { n: 5, b: 2, s: 2 }, terrain: [ground(-0.1, 1.1), ...vault(0.44, 1.10, G_Y, 0.60)],
+      portals: [{ a: [0.32, 0.64], b: [0.68, 0.71] },
+        { a: [0.24, 0.44], b: [0.66, 0.30] }],
+      enemies: [E(0.76), EA(0.84), ES(0.82, 0.48), EA(0.38), EW(0.22, G_Y, 0.16, 0.34)] }
   ];
   const PER_CHAPTER = 6;
 
@@ -167,12 +196,15 @@
     { name: 'おしろ', sky: ['#121634', '#232C62', '#434A8A', '#8A6C9C', '#E6B49C'],
       mts: ['rgba(88,96,150,.45)', 'rgba(56,62,110,.7)', 'rgba(30,34,66,.95)'],
       land: '#262B42', edge: 'rgba(236,226,206,.6)', orb: { x: .84, y: .17, c: '#F4F1E6', g: '200,210,255' }, stars: 40, castle: 1 },
-    { name: 'かぜ', sky: ['#0E2A4A', '#1F5A82', '#58A6B8', '#B9DCC0', '#F4EBC0'],
-      mts: ['rgba(70,140,160,.5)', 'rgba(40,96,122,.7)', 'rgba(16,52,72,.92)'],
-      land: '#0F2A38', edge: 'rgba(255,248,214,.65)', orb: { x: .72, y: .30, c: '#FFFBE6', g: '255,244,200' }, stars: 0, clouds: 1 },
     { name: 'ほし', sky: ['#05030F', '#150B33', '#2C1459', '#5A2A7A', '#B04A82'],
       mts: ['rgba(110,60,150,.4)', 'rgba(70,36,110,.65)', 'rgba(30,14,56,.94)'],
-      land: '#0D0620', edge: 'rgba(180,255,244,.65)', orb: { x: .26, y: .22, c: '#FFD9F2', g: '255,150,230' }, stars: 120 }
+      land: '#0D0620', edge: 'rgba(180,255,244,.65)', orb: { x: .26, y: .22, c: '#FFD9F2', g: '255,150,230' }, stars: 120 },
+        { name: 'そら', sky: ['#0E2A4A', '#1F5A82', '#58A6B8', '#B9DCC0', '#F4EBC0'],
+      mts: ['rgba(70,140,160,.5)', 'rgba(40,96,122,.7)', 'rgba(16,52,72,.92)'],
+      land: '#0F2A38', edge: 'rgba(255,248,214,.65)', orb: { x: .72, y: .30, c: '#FFFBE6', g: '255,244,200' }, stars: 0, clouds: 1 },
+    { name: 'ぎんが', sky: ['#030A1A', '#0B2450', '#1B4F86', '#2C8FA0', '#9BE5C0'],
+      mts: ['rgba(40,110,150,.4)', 'rgba(22,70,110,.65)', 'rgba(8,28,56,.94)'],
+      land: '#07142A', edge: 'rgba(150,255,230,.65)', orb: { x: .30, y: .24, c: '#D6F8FF', g: '120,230,255' }, stars: 140 }
   ];
   const skyOf = (i) => SKIES[Math.min(SKIES.length - 1, Math.floor(i / PER_CHAPTER))];
 
@@ -222,13 +254,9 @@
     return { vx: aim.ux * s, vy: aim.uy * s };
   }
 
-  /**
-   * 弾を h 秒ぶん進める (重力つき)。
-   * b.wx があれば、かぜ (横向きの加速。H/秒²。+ は右) でおし流される。
-   */
+  /** 弾を h 秒ぶん進める (重力つき)。 */
   function advance(b, h, view) {
     b.vy += GRAV * (b.gmul || 1) * view.H * h;
-    if (b.wx) b.vx += b.wx * view.H * h;
     b.x += b.vx * h;
     b.y += b.vy * h;
     b.life = (b.life || 0) + h;
@@ -282,7 +310,7 @@
     const v = launchVelocity(kind, aim, view);
     const m = muzzle(view);
     const e = env || {};
-    const b = { x: m.x, y: m.y, vx: v.vx, vy: v.vy, gmul: AMMO[kind].gmul || 1, life: 0, wx: e.wind || 0 };
+    const b = { x: m.x, y: m.y, vx: v.vx, vy: v.vy, gmul: AMMO[kind].gmul || 1, life: 0 };
     const h = 1 / (fps || 60) / SUBSTEPS;
     const path = [];
     const list = targets || [];
@@ -313,7 +341,7 @@
     const v = launchVelocity(kind, aim, view);
     const m = muzzle(view);
     const e = env || {};
-    const b = { x: m.x, y: m.y, vx: v.vx, vy: v.vy, gmul: AMMO[kind].gmul || 1, life: 0, wx: e.wind || 0 };
+    const b = { x: m.x, y: m.y, vx: v.vx, vy: v.vy, gmul: AMMO[kind].gmul || 1, life: 0 };
     const byDistance = kind === 'r';
     const h = 1 / 400;
     const dots = [];
@@ -390,7 +418,7 @@
     a.r = rifleFor(i);
     return a;
   }
-  const envOf = (i) => ({ wind: LEVELS[i].wind || 0, portals: LEVELS[i].portals || [] });
+  const envOf = (i) => ({ portals: LEVELS[i].portals || [] });
   const kindsIn = (i) => ORDER.filter((k) => LEVELS[i].ammo[k] || k === 'r');
   const coreLeft = (ammo) => CORE_KINDS.reduce((a, k) => a + (ammo[k] || 0), 0);
   const totalLeft = (ammo) => ORDER.reduce((a, k) => a + (ammo[k] || 0), 0);

@@ -65,7 +65,7 @@ function findAim(page, kind) {
   return page.evaluate((kind) => {
     const C = window.Core, app = window.__app, view = app.view;
     const lv = C.LEVELS[app.state().lv];
-    const env = app.env();   // かぜとゲート
+    const env = app.env();   // ゲート
     const foes = app.state().foes.filter((f) => !f.dead);
     const m = C.muzzle(view);
     for (let deg = -80; deg <= -5; deg += 1) {
@@ -199,7 +199,7 @@ async function run() {
       lock2: document.querySelector('.cell[data-level="1"]').classList.contains('locked'),
       scene: window.__app.state().scene
     }));
-    ok(sel.scene === 'select' && sel.cells === 42, `42 面が並ぶ (${sel.cells})`);
+    ok(sel.scene === 'select' && sel.cells === 48, `48 面が並ぶ (${sel.cells})`);
     ok(sel.open1 && sel.lock2, '1 面目だけ開いていて、2 面目は閉じている');
 
     // 実機の安全域 (上 59・下 34) を差し込んでも、面えらびの画面が 932 に収まる
@@ -288,29 +288,20 @@ async function run() {
     ok(lose.r && lose.r.win === false && lose.title === 'たまぎれ', `「たまぎれ」が出る (${lose.title})`);
     ok(lose.next === 'none', '負けたら「つぎへ」は出ない');
 
-    // ------------------------------------------------ かぜ・ゲート
-    section('かぜ: 画面に向きと強さが出て、点線も弾も流される');
-    await page.evaluate(() => window.__app.play(30));
-    const w1 = await page.evaluate(() => ({ txt: document.getElementById('wind').textContent, env: window.__app.env().wind,
-      shown: getComputedStyle(document.getElementById('wind')).display !== 'none' }));
-    ok(w1.shown && w1.txt.startsWith('かぜ ') && w1.txt.includes('▶') && w1.env > 0, `右向きのかぜが出る (${w1.txt})`);
-    await page.evaluate(() => window.__app.play(31));
-    const w2 = await page.evaluate(() => document.getElementById('wind').textContent);
-    ok(w2.includes('◀'), `左向きのかぜが出る (${w2})`);
-    await page.evaluate(() => window.__app.play(0));
-    const w0 = await page.evaluate(() => ({ shown: getComputedStyle(document.getElementById('wind')).display !== 'none', env: window.__app.env().wind }));
-    ok(!w0.shown && w0.env === 0, 'かぜの無い面では、かぜの表示が出ない');
-
-    for (const lvl of [30, 33]) {
-      const r = await playOut(page, lvl);
-      ok(r && r.win === true, `${lvl + 1}面 (かぜ): かぜを読んだ撃ち方でクリアできる (${r ? JSON.stringify(r) : 'null'})`);
-    }
-
+    // ------------------------------------------------ ゲート
     section('ゲート: 入口に撃ち込むと出口から出て、ほら穴の敵に当たる');
-    await page.evaluate(() => window.__app.play(36));
+    await page.evaluate(() => window.__app.play(30));
     const g1 = await page.evaluate(() => window.__app.env().portals.length);
-    ok(g1 === 1, `37 面にゲートが 1 組ある (${g1})`);
-    for (const lvl of [36, 37, 38]) {   // ふつうの敵だけの面 (爆風で倒せる)
+    ok(g1 === 1, `31 面にゲートが 1 組ある (${g1})`);
+    await page.evaluate(() => window.__app.play(42));
+    const g2 = await page.evaluate(() => window.__app.env().portals.length);
+    ok(g2 === 2, `43 面にゲートが 2 組ある (${g2})`);
+    await page.evaluate(() => window.__app.play(0));
+    const g0 = await page.evaluate(() => window.__app.env().portals.length);
+    ok(g0 === 0, 'ゲートの無い面では、ゲートが出ない');
+
+    // ふつうの敵だけの面を、実際に撃ってクリアする (ゲートを通して。爆風で倒す)
+    for (const lvl of [30, 31, 36, 37, 42]) {
       const r = await playOut(page, lvl);
       ok(r && r.win === true, `${lvl + 1}面 (ゲート): ゲートを通してクリアできる (${r ? JSON.stringify(r) : 'null'})`);
     }

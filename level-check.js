@@ -2,8 +2,8 @@
  * 面の調整用: 敵ごとに「当たる撃ち方が何通りあるか」を数える。  node level-check.js [はじめの面 [おわりの面 [min]]]
  *
  * 面の番号は 1 から。min を付けると、面ごとの最小だけを 1 行で出す。
- * 直撃か、爆風が届く所に落ちれば数える。かぜとゲートも効かせる (ゲートの面は「ゲートなし」も並べる)。
- * 目安: 元の 30 面は敵ごとに最低 22 通り。10 通りを切る敵がいたら、かぜや置き場所を見直す。
+ * 直撃か、爆風が届く所に落ちれば数える。ゲートも効かせる (ゲートの面は「ゲートなし」も並べる)。
+ * 目安: 元の 30 面は敵ごとに最低 22 通り。10 通りを切る敵がいたら、置き場所を見直す。
  */
 const C = require('./core.js');
 const V = { W: 430, H: 932 };
@@ -27,8 +27,8 @@ for (let i = from; i <= to; i++) {
   const a = reach(i, env);
   mins.push((i + 1) + ':' + Math.min(...a));
   if (!quiet) {
-    let line = `${i + 1}面 (${env.portals.length ? 'ゲート' : 'かぜ ' + env.wind}) 当てる撃ち方の数: ${a.join(', ')}`;
-    if (env.portals.length) line += `   ゲートなし: ${reach(i, { wind: 0, portals: [] }).join(', ')}`;
+    let line = `${i + 1}面 (${env.portals.length ? 'ゲート ' + env.portals.length + ' 組' : 'ゲートなし'}) 当てる撃ち方の数: ${a.join(', ')}`;
+    if (env.portals.length) line += `   ゲートなし: ${reach(i, { portals: [] }).join(', ')}`;
     console.log(line);
   }
 }

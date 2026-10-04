@@ -5,7 +5,7 @@
 'use strict';
 
 const C = window.Core;
-const VERSION = '3';
+const VERSION = '4';
 
 /* ========== 画面 ========== */
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
@@ -73,7 +73,7 @@ let ammo = {}, sel = 'n', shake = 0, flash = 0, hitstop = 0, endTimer = 0, gunRe
 let kindsInLevel = [];
 let aiming = false, aimX = 0, aimY = 0, bolt = 0;
 let lastResult = null;
-let wind = 0, portals = [], gusts = [];   // この面のかぜ (+ は右) とゲート
+let portals = [];   // この面のゲート
 let demoT = 0, demoAng = -Math.PI / 4, demoShots = 0, demoKind = 0;   // タイトルの飾りの試し撃ち
 let textFont = '';   // 字を書くときに効いている font (テスト用)
 
@@ -104,7 +104,6 @@ function buildBackdrop() {
   }
   stars = []; for (let i = 0; i < pal.stars; i++) stars.push({ x: rnd(), y: rnd() * 0.45, r: rnd() * 1.6 + 0.5, p: rnd() * 6 });
   clouds = []; if (pal.clouds) for (let i = 0; i < 4; i++) clouds.push({ x: rnd(), y: 0.12 + rnd() * 0.2, s: 0.07 + rnd() * 0.07, v: 0.006 + rnd() * 0.01 });
-  gusts = []; if (wind) for (let i = 0; i < 34; i++) gusts.push({ x: rnd(), y: 0.08 + rnd() * 0.78, v: 0.7 + rnd() * 0.8, l: 0.05 + rnd() * 0.07 });
   drops = []; if (pal.rain) for (let i = 0; i < 60; i++) drops.push({ x: rnd(), y: rnd(), v: 0.9 + rnd() * 0.5 });
 }
 
@@ -116,9 +115,7 @@ function loadLevel(i) {
   kindsInLevel = C.kindsIn(i);
   sel = C.ORDER.find((k) => ammo[k] > 0) || 'n';
   foes = C.makeFoes(i);
-  wind = C.LEVELS[i].wind || 0; portals = C.LEVELS[i].portals || [];
-  const nWind = wind ? Math.ceil(Math.abs(wind) / 0.15) : 0;
-  $('wind').textContent = wind ? 'かぜ ' + (wind > 0 ? '▶'.repeat(nWind) : '◀'.repeat(nWind)) : '';
+  portals = C.LEVELS[i].portals || [];
   bullets = []; parts = []; rings = []; texts = []; smoke = [];
   shake = 0; flash = 0; hitstop = 0; endTimer = 0; gunRecoil = 0; bolt = 0; comboCount = 0;
   buildBackdrop(); drawBelt();
@@ -129,7 +126,7 @@ function loadLevel(i) {
 function loadTitle() {
   lv = 0;
   terrain = C.TITLE.terrain; foes = C.foesFrom(C.TITLE.enemies);
-  wind = 0; portals = []; ammo = { n: 9 }; kindsInLevel = ['n']; sel = 'n';
+  portals = []; ammo = { n: 9 }; kindsInLevel = ['n']; sel = 'n';
   bullets = []; parts = []; rings = []; texts = []; smoke = [];
   shake = 0; flash = 0; hitstop = 0; gunRecoil = 0; bolt = 0; demoT = 0.7; aiming = false;
   buildBackdrop();
@@ -161,7 +158,7 @@ const muzzle = () => C.muzzle(view);
 const aimVec = () => C.aimVec(aimX, aimY, view);
 function newBullet(x, y, vx, vy, kind) {
   return { x, y, vx, vy, kind, blast: C.AMMO[kind].blast, bounce: kind === 'b' ? 2 : 0, split: kind === 's',
-    gmul: C.AMMO[kind].gmul || 1, wx: wind, trail: [], life: 0 };
+    gmul: C.AMMO[kind].gmul || 1, trail: [], life: 0 };
 }
 function fire() {
   const A = C.AMMO[sel] || {}, maxAir = A.maxAir || 1;
@@ -261,11 +258,7 @@ function step(dt) {
   rings = rings.filter((r) => r.life > 0);
   texts.forEach((t) => { t.life -= dt; t.y -= H * .05 * dt; });
   texts = texts.filter((t) => t.life > 0);
-  clouds.forEach((c) => { c.x += (c.v + wind * 0.05) * dt; if (c.x > 1.25) c.x = -0.25; if (c.x < -0.3) c.x = 1.2; });
-  gusts.forEach((g) => {
-    g.x += Math.sign(wind) * g.v * Math.min(1, Math.abs(wind) * 2.2) * dt * 0.9;
-    if (g.x > 1.1) { g.x = -0.1; g.y = 0.08 + Math.random() * 0.78; } else if (g.x < -0.1) { g.x = 1.1; g.y = 0.08 + Math.random() * 0.78; }
-  });
+  clouds.forEach((c) => { c.x += c.v * dt; if (c.x > 1.25) c.x = -0.25; });
   if (scene === 'title') { demoT -= dt; if (demoT <= 0) { demoShot(); demoT = 1.5 + Math.random() * 0.7; } }
   drops.forEach((d) => { d.y += d.v * dt; d.x += d.v * dt * 0.18; if (d.y > 1) { d.y = -0.05; d.x = Math.random(); } });
 
@@ -365,16 +358,6 @@ function draw() {
     ctx.lineTo(W + 24, H + 24); ctx.closePath(); ctx.fill();
   });
   if (castleBg) drawCastleBg();
-
-  if (wind) {
-    ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
-    ctx.beginPath();
-    gusts.forEach((g) => {
-      const len = W * g.l * Math.min(2, Math.abs(wind) * 3) * Math.sign(wind);
-      ctx.moveTo(X(g.x), Y(g.y)); ctx.lineTo(X(g.x) + len, Y(g.y));
-    });
-    ctx.stroke();
-  }
 
   if (pal.rain) {
     ctx.strokeStyle = 'rgba(200,205,235,.28)'; ctx.lineWidth = 1.2;
@@ -633,7 +616,7 @@ function drawAim() {
   const a = aimVec(), m = muzzle();
   // ライフルの点は細かく並ぶので、小さめに描く (ふつうの弾の 6 割)
   const size = H * .005 * (sel === 'r' ? .6 : 1);
-  C.aimDots(terrain, sel, a, view, { wind, portals }).forEach((d) => {
+  C.aimDots(terrain, sel, a, view, { portals }).forEach((d) => {
     ctx.fillStyle = 'rgba(255,240,214,' + (.16 + d.k * .5) + ')';
     ctx.beginPath(); ctx.arc(d.x, d.y, size * (.5 + d.k * .7), 0, 7); ctx.fill();
   });
@@ -709,7 +692,8 @@ const HINTS = { 0: '画面をおして、はなすと撃つ', 1: 'ライフル�
   4: 'はねる弾は かべで2回はねる', 8: 'さくれつ弾は とんでいる間にタップでわれる',
   6: 'かぶとの敵は 直撃でないと たおせない', 12: 'とぶ敵は 上下にうごく', 13: 'あるく敵は 足場を いったりきたり',
   24: 'バリアの敵は 光がまたたいた すきに当てる',
-  30: 'かぜが 弾をおし流す。点線もかぜを うけている', 36: 'ゲートに入った弾は、もうひとつのゲートから出てくる' };
+  30: 'ゲートに入った弾は、もうひとつのゲートから出てくる。点線も通りぬける',
+  36: '出口がゆかに近いと、出てすぐ爆発する', 42: 'ゲートは 2 組。色ごとに入口と出口がつながる' };
 function play(i) {
   loadLevel(i); scene = 'play';
   show('pTitle', 0); show('pSelect', 0); show('pResult', 0); show('hud', 1); show('belt', 1);
@@ -755,8 +739,8 @@ window.__app = {
     foes: foes.map((f) => ({ x: f.x, y: f.y, t: f.t, dead: f.dead, ph: f.ph })), lastResult, save: Object.assign({}, save) }),
   play,
   muzzle,
-  aimDots: (x, y) => C.aimDots(terrain, sel, C.aimVec(x, y, view), view, { wind, portals }),
-  env: () => ({ wind, portals }),
+  aimDots: (x, y) => C.aimDots(terrain, sel, C.aimVec(x, y, view), view, { portals }),
+  env: () => ({ portals }),
   demoShots: () => demoShots,
   canvasFont: () => textFont
 };
