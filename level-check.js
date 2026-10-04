@@ -27,7 +27,7 @@ for (let i = from; i <= to; i++) {
   const a = reach(i, env);
   mins.push((i + 1) + ':' + Math.min(...a));
   if (!quiet) {
-    let line = `${i + 1}面 (${env.portals.length ? 'ゲート ' + env.portals.length + ' 組' : 'ゲートなし'}) 当てる撃ち方の数: ${a.join(', ')}`;
+    let line = `${i + 1}面 (${env.portals.length ? 'ゲート ' + env.portals.length + ' 組' : env.wind ? 'かぜ ' + env.wind : 'ギミックなし'}) 当てる撃ち方の数: ${a.join(', ')}`;
     if (env.portals.length) line += `   ゲートなし: ${reach(i, { portals: [] }).join(', ')}`;
     console.log(line);
   }

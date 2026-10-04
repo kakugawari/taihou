@@ -15,8 +15,8 @@ function aimAt(deg, power, view) {
 
 /**
  * その面で、それぞれの敵に「当てられる撃ち方」が何通りあるかを総当たりで数える。
- * 直撃するか、爆風が届く所に落ちれば当てられたとみなす。ゲートも効かせる。
- * @param {object} [env] 省くと、その面のゲート
+ * 直撃するか、爆風が届く所に落ちれば当てられたとみなす。かぜとゲートも効かせる。
+ * @param {object} [env] 省くと、その面のかぜとゲート
  * @returns {number[]} 敵ごとの、当たる撃ち方の数
  */
 // 「ぎりぎり当たる」だけの敵がいないこと。元の 30 面は、敵ごとに最低 22 通り (新しい面も 21 以上)。
@@ -68,6 +68,8 @@ test('面の数と景色: 6 面ごとに景色が変わり、景色の数ぶん�
   assert.strictEqual(Core.skyOf(30).name, 'ほし');
   assert.strictEqual(Core.skyOf(36).name, 'そら');
   assert.strictEqual(Core.skyOf(47).name, 'ぎんが');
+  assert.strictEqual(Core.skyOf(48).name, 'かぜ');
+  assert.strictEqual(Core.skyOf(53).name, 'かぜ');
 });
 
 test('どの面も、敵が地形の中に埋まっていない', () => {
@@ -205,8 +207,41 @@ test('ねらいの点線は、地形の中に点を打たない', () => {
 });
 
 /* ========== ゲート・タイトル ========== */
-// ワープ (ゲート) の面は 31 面から最後まで (3 章 x 6 面)
+// 31〜48 面はワープ (ゲート)、そのあと 49〜54 面がかぜ。ワープが先で、かぜはあと
 const GATE_LEVELS = Core.LEVELS.map((l, i) => (l.portals ? i : -1)).filter((i) => i >= 0);
+const WIND_LEVELS = Core.LEVELS.map((l, i) => (l.wind ? i : -1)).filter((i) => i >= 0);
+
+test('かぜ: 弾を横におし流す。向きは符号どおりで、かぜが無ければ流れない', () => {
+  const run = (wx) => {
+    const b = { x: 100, y: 100, vx: 0, vy: 0, gmul: 1, wx };
+    for (let n = 0; n < 60; n++) Core.advance(b, 1 / 60, VIEW);
+    return b;
+  };
+  assert.strictEqual(run(0).x, 100);
+  assert.ok(run(0.4).x > 100 + 100, `右へ流れる: ${run(0.4).x}`);
+  assert.ok(run(-0.4).x < 100 - 100, `左へ流れる: ${run(-0.4).x}`);
+  assert.ok(Math.abs(run(0.4).y - run(0).y) < 1e-9, 'かぜは縦には効かない');
+});
+
+test('かぜの面は、かぜが 0 ではなく、点線もかぜで曲がる', () => {
+  for (const i of WIND_LEVELS) {
+    const w = Core.envOf(i).wind;
+    assert.ok(Math.abs(w) >= 0.2 && Math.abs(w) <= 0.5, `${i + 1}面のかぜ: ${w}`);
+    const t = Core.LEVELS[i].terrain;
+    let aim = null;   // 近くのかべにぶつからず、点が十分出る撃ち方を探す
+    for (let deg = -89; deg <= -40 && !aim; deg += 1) {
+      const a = aimAt(deg, 1, VIEW);
+      if (Core.aimDots(t, 'n', a, VIEW, { wind: 0, portals: [] }).length >= 12) aim = a;
+    }
+    assert.ok(aim, `${i + 1}面: 点線を比べられる撃ち方が無い`);
+    const plain = Core.aimDots(t, 'n', aim, VIEW, { wind: 0, portals: [] });
+    const windy = Core.aimDots(t, 'n', aim, VIEW, Core.envOf(i));
+    const n = Math.min(plain.length, windy.length) - 1;   // 同じ番号の点どうしで比べる (終わる所は違いうる)
+    assert.ok(n >= 8, `${i + 1}面: 点が少なくて比べられない (${n})`);
+    assert.ok(Math.sign(windy[n].x - plain[n].x) === Math.sign(w), `${i + 1}面: 点線がかぜの向きに曲がる`);
+  }
+  assert.strictEqual(Core.envOf(0).wind, 0, 'ふつうの面にかぜは無い');
+});
 
 test('ゲート: 入口に入った弾は出口から出る。どちら向きでも使え、出た直後にまた吸われない', () => {
   const portals = [{ a: [0.3, 0.4], b: [0.8, 0.7] }];
@@ -243,9 +278,12 @@ test('ゲートの輪は、地形に重ならず、画面の中にある', () =>
   }
 });
 
-test('ゲートの面は、31 面から最後までそろっている', () => {
-  assert.deepStrictEqual(GATE_LEVELS, Array.from({ length: Core.LEVELS.length - 30 }, (_, k) => 30 + k));
-  assert.strictEqual(GATE_LEVELS.length, 18);
+test('章の並び: 31〜48 面がワープ (3 章)、そのあと 49〜54 面がかぜ (ワープが先)', () => {
+  assert.deepStrictEqual(GATE_LEVELS, Array.from({ length: 18 }, (_, k) => 30 + k));
+  assert.deepStrictEqual(WIND_LEVELS, Array.from({ length: 6 }, (_, k) => 48 + k));
+  assert.strictEqual(Core.LEVELS.length, 54);
+  for (const i of WIND_LEVELS) assert.ok(!Core.LEVELS[i].portals, `${i + 1}面: かぜの面にゲートは無い`);
+  for (const i of GATE_LEVELS) assert.ok(!Core.LEVELS[i].wind, `${i + 1}面: ゲートの面にかぜは無い`);
   assert.ok(GATE_LEVELS.some((i) => Core.LEVELS[i].portals.length === 2), '2 組のゲートの面がある');
 });
 
@@ -276,14 +314,14 @@ test('2 組目のゲートも、実際に通れて敵に当たる', () => {
 
 test('ゲートの面は、ゲートを使わないと当てられない敵がいる (ゲートが効いている)', () => {
   for (const i of GATE_LEVELS) {
-    const without = reachable(i, VIEW, { portals: [] });
+    const without = reachable(i, VIEW, { wind: 0, portals: [] });
     assert.ok(without.some((n) => n === 0), `${i + 1}面: ゲートなしでも全員に当たってしまう (${without.join(',')})`);
   }
 });
 
 test('ゲートがあると、ゲートなしでは当たらない敵に当たる', () => {
   for (const i of GATE_LEVELS) {
-    const without = reachable(i, VIEW, { portals: [] });
+    const without = reachable(i, VIEW, { wind: 0, portals: [] });
     const withGate = reachable(i, VIEW);
     without.forEach((n, k) => {
       if (n === 0) assert.ok(withGate[k] >= MIN_WAYS, `${i + 1}面の${k + 1}体目: ゲートを通して ${withGate[k]} 通りしか当たらない`);

@@ -169,7 +169,21 @@
     { ammo: { n: 5, b: 2, s: 2 }, terrain: [ground(-0.1, 1.1), ...vault(0.44, 1.10, G_Y, 0.60)],
       portals: [{ a: [0.32, 0.64], b: [0.68, 0.71] },
         { a: [0.24, 0.44], b: [0.66, 0.30] }],
-      enemies: [E(0.76), EA(0.84), ES(0.82, 0.48), EA(0.38), EW(0.22, G_Y, 0.16, 0.34)] }
+      enemies: [E(0.76), EA(0.84), ES(0.82, 0.48), EA(0.38), EW(0.22, G_Y, 0.16, 0.34)] },
+
+    /* ---- かぜ (かぜが弾を横におし流す。+ は右向き) ---- */
+    { wind: 0.30, ammo: { n: 3 }, terrain: [ground(-0.1, 1.1), wall(0.46, 0.07, 0.70)],
+      enemies: [E(0.70), E(0.90)] },
+    { wind: -0.35, ammo: { n: 4 }, terrain: [ground(-0.1, 1.1), slab(0.55, 0.95, 0.72)],
+      enemies: [E(0.62, 0.72), E(0.84, 0.72), E(0.40)] },
+    { wind: 0.45, ammo: { n: 3, b: 2 }, terrain: [ground(-0.1, 1.1), wall(0.30, 0.08, 0.60), wall(0.62, 0.07, 0.66)],
+      enemies: [E(0.45), E(0.78), EA(0.90)] },
+    { wind: -0.50, ammo: { n: 4, s: 2 }, terrain: [ground(-0.1, 1.1), slab(0.40, 0.70, 0.70), slab(0.72, 1.04, 0.60)],
+      enemies: [E(0.52, 0.70), ES(0.86, 0.60), EF(0.62, 0.45, 0.06)] },
+    { wind: 0.35, ammo: { n: 4 }, terrain: [ground(-0.1, 1.1), wall(0.50, 0.08, 0.58)],
+      enemies: [EF(0.72, 0.40, 0.07), EW(0.80, G_Y, 0.62, 0.95), E(0.30)] },
+    { wind: -0.20, ammo: { n: 4, b: 2, s: 2 }, terrain: [ground(-0.1, 1.1), wall(0.34, 0.06, 0.62), slab(0.50, 0.74, 0.76), slab(0.80, 1.04, 0.60)],
+      enemies: [E(0.60, 0.76), EA(0.88, 0.60), ES(0.37, 0.62), EF(0.70, 0.44, 0.06)] }
   ];
   const PER_CHAPTER = 6;
 
@@ -204,7 +218,10 @@
       land: '#0F2A38', edge: 'rgba(255,248,214,.65)', orb: { x: .72, y: .30, c: '#FFFBE6', g: '255,244,200' }, stars: 0, clouds: 1 },
     { name: 'ぎんが', sky: ['#030A1A', '#0B2450', '#1B4F86', '#2C8FA0', '#9BE5C0'],
       mts: ['rgba(40,110,150,.4)', 'rgba(22,70,110,.65)', 'rgba(8,28,56,.94)'],
-      land: '#07142A', edge: 'rgba(150,255,230,.65)', orb: { x: .30, y: .24, c: '#D6F8FF', g: '120,230,255' }, stars: 140 }
+      land: '#07142A', edge: 'rgba(150,255,230,.65)', orb: { x: .30, y: .24, c: '#D6F8FF', g: '120,230,255' }, stars: 140 },
+    { name: 'かぜ', sky: ['#22334A', '#3C6B6F', '#7FAF8F', '#D8D6A0', '#F7E7B0'],
+      mts: ['rgba(90,140,110,.5)', 'rgba(50,100,80,.7)', 'rgba(20,50,40,.92)'],
+      land: '#17301F', edge: 'rgba(255,250,200,.65)', orb: { x: .68, y: .34, c: '#FFF3C4', g: '255,226,150' }, stars: 0, clouds: 1 }
   ];
   const skyOf = (i) => SKIES[Math.min(SKIES.length - 1, Math.floor(i / PER_CHAPTER))];
 
@@ -254,9 +271,13 @@
     return { vx: aim.ux * s, vy: aim.uy * s };
   }
 
-  /** 弾を h 秒ぶん進める (重力つき)。 */
+  /**
+   * 弾を h 秒ぶん進める (重力つき)。
+   * b.wx があれば、かぜ (横向きの加速。H/秒²。+ は右) でおし流される。
+   */
   function advance(b, h, view) {
     b.vy += GRAV * (b.gmul || 1) * view.H * h;
+    if (b.wx) b.vx += b.wx * view.H * h;
     b.x += b.vx * h;
     b.y += b.vy * h;
     b.life = (b.life || 0) + h;
@@ -310,7 +331,7 @@
     const v = launchVelocity(kind, aim, view);
     const m = muzzle(view);
     const e = env || {};
-    const b = { x: m.x, y: m.y, vx: v.vx, vy: v.vy, gmul: AMMO[kind].gmul || 1, life: 0 };
+    const b = { x: m.x, y: m.y, vx: v.vx, vy: v.vy, gmul: AMMO[kind].gmul || 1, life: 0, wx: e.wind || 0 };
     const h = 1 / (fps || 60) / SUBSTEPS;
     const path = [];
     const list = targets || [];
@@ -341,7 +362,7 @@
     const v = launchVelocity(kind, aim, view);
     const m = muzzle(view);
     const e = env || {};
-    const b = { x: m.x, y: m.y, vx: v.vx, vy: v.vy, gmul: AMMO[kind].gmul || 1, life: 0 };
+    const b = { x: m.x, y: m.y, vx: v.vx, vy: v.vy, gmul: AMMO[kind].gmul || 1, life: 0, wx: e.wind || 0 };
     const byDistance = kind === 'r';
     const h = 1 / 400;
     const dots = [];
@@ -418,7 +439,7 @@
     a.r = rifleFor(i);
     return a;
   }
-  const envOf = (i) => ({ portals: LEVELS[i].portals || [] });
+  const envOf = (i) => ({ wind: LEVELS[i].wind || 0, portals: LEVELS[i].portals || [] });
   const kindsIn = (i) => ORDER.filter((k) => LEVELS[i].ammo[k] || k === 'r');
   const coreLeft = (ammo) => CORE_KINDS.reduce((a, k) => a + (ammo[k] || 0), 0);
   const totalLeft = (ammo) => ORDER.reduce((a, k) => a + (ammo[k] || 0), 0);
